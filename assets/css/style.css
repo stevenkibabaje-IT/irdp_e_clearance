@@ -533,26 +533,87 @@ p {
     color: var(--muted);
 }
 
-.progress-track {
-    height: 11px;
-    overflow: hidden;
-    border-radius: 99px;
-    background: #e6ece9;
+/* Circular progress, matching the approved mockup on desktop and phones. */
+.clearance-progress {
+    container: clearance-progress / inline-size;
 }
-
-.progress-track > div {
-    height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, var(--green-800), var(--irdp-green));
+.clearance-progress-note { margin-bottom: 20px; font-size: .875rem; }
+.clearance-progress-layout {
+    display: grid;
+    grid-template-columns: minmax(150px, .7fr) minmax(0, 1.3fr);
+    align-items: center;
+    gap: 24px;
 }
-
-.progress-label {
+.progress-ring {
+    position: relative;
+    width: min(100%, 220px);
+    aspect-ratio: 1;
+    justify-self: center;
+}
+.progress-ring-chart { display: block; width: 100%; height: 100%; }
+.progress-ring-chart circle { fill: none; stroke-width: 14; }
+.progress-ring-track { stroke: #e0e7e9; }
+.progress-ring-value { stroke: var(--irdp-green); }
+.progress-ring-label {
+    position: absolute;
+    inset: 0;
     display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 7px;
-    font-size: 0.8125rem;
-    font-weight: 700;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+}
+.progress-ring-label strong {
+    color: var(--ink);
+    font-size: 2.5rem;
+    line-height: 1.15;
+    letter-spacing: -.06em;
+}
+.progress-ring-label strong span { font-size: .6em; letter-spacing: 0; }
+.progress-ring-label > span { font-size: .875rem; }
+.clearance-progress-summary { min-width: 0; }
+.clearance-progress-total { margin: 0 0 20px; }
+.clearance-progress-total strong { display: block; font-size: 2.25rem; line-height: 1.2; }
+.clearance-progress-total > span { color: var(--muted); font-size: 1rem; }
+.clearance-progress-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+.progress-metric {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    background: #f1f3f5;
+}
+.progress-metric > div { min-width: 0; }
+.progress-metric strong { display: block; font-size: 1.375rem; line-height: 1.2; }
+.progress-metric div > span { display: block; font-size: .75rem; }
+.progress-metric-icon { display: inline-flex; flex: 0 0 auto; color: var(--muted); }
+.progress-metric-icon .icon { width: 30px; height: 30px; }
+.progress-metric.approved { background: var(--green-100); }
+.progress-metric.approved .progress-metric-icon { color: var(--ink); background: var(--irdp-green); border-radius: 50%; }
+.progress-metric.action-required { background: var(--orange-soft); }
+.progress-metric.action-required .progress-metric-icon { color: #805600; }
+.office-status-heading { margin: 24px 0 12px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 1rem; }
+.office-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.office-status-grid .timeline-item { border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+.office-status-grid .timeline-item::after { display: none; }
+.office-status-grid .timeline-item strong { font-size: .875rem; }
+.office-status-grid .timeline-item small { font-size: .75rem; }
+.office-status-grid .dot .icon { width: 22px; height: 22px; }
+.office-status-grid .timeline-item.rejected .dot { color: #805600; background: var(--orange-soft); }
+@container clearance-progress (max-width: 560px) {
+    .clearance-progress-layout { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .clearance-progress-total { text-align: center; }
+    .clearance-progress-metrics { grid-template-columns: minmax(0, 1fr); }
+    .progress-metric { padding: 12px 16px; }
+    .progress-metric > div { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+}
+@media (max-width: 600px) {
+    .office-status-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 .quick-grid {
@@ -1392,6 +1453,9 @@ a:not(.btn):not(.sidebar-nav a):hover, a:not(.btn):not(.sidebar-nav a):focus-vis
 .high-contrast .sidebar :focus-visible { outline-color: #fff; }
 .high-contrast .sidebar-nav a:hover,
 .high-contrast .sidebar-nav a.active { background: #000 !important; outline: 2px solid #fff; }
+.high-contrast .progress-ring-value { stroke: #000; }
+.high-contrast .progress-ring-track { stroke: #ddd; }
+.high-contrast .progress-metric { background: #fff; border: 1px solid #000; }
 /* Respect device preferences by removing animation and smooth scrolling. */
 @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }

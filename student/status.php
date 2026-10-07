@@ -27,8 +27,6 @@ if (!$request) {
 }
 
 $stages = get_clearance_stages($pdo, (int) $request['id']);
-$approved = count(array_filter($stages, static fn (array $stage): bool => $stage['status'] === 'APPROVED'));
-$progress = (int) round(($approved / 11) * 100);
 
 $pageTitle = 'My Clearance';
 require_once __DIR__ . '/../includes/header.php';
@@ -45,13 +43,11 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <div class="panel">
-    <div class="progress-label">
-        <span><strong><?= e($request['status']==='PAUSED'?'Action Required':$request['status']) ?></strong> · <?= $approved ?> of 11 stages approved</span>
-        <span><?= $progress ?>%</span>
+    <div class="panel-head">
+        <h2>Clearance Progress</h2>
+        <span class="<?= e(badge_class($request['status'])) ?>"><?= e(humanize_status($request['status'])) ?></span>
     </div>
-    <div class="progress-track" role="progressbar" aria-label="Clearance progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $progress ?>">
-        <div style="width: <?= $progress ?>%;"></div>
-    </div>
+    <?php clearance_progress($stages); ?>
 
     <?php if ($request['status'] === 'PAUSED'): ?>
         <div class="alert danger" style="margin-top:14px;">

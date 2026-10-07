@@ -103,18 +103,15 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="btn primary" href="<?= e(url('student/start.php')) ?>">Start Clearance</a>
             </div>
         <?php else: ?>
-            <div class="progress-label">
-                <span><?= $completed ?> of <?= $total ?> stages approved</span>
-                <span><?= $progress ?>%</span>
-            </div>
-            <div class="progress-track" role="progressbar" aria-label="Clearance progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $progress ?>">
-                <div style="width: <?= $progress ?>%;"></div>
-            </div>
+            <?php clearance_progress($stages); ?>
 
-            <div class="timeline" style="margin-top:12px;">
+            <h3 class="office-status-heading">Office Status</h3>
+            <div class="timeline office-status-grid">
                 <?php foreach ($stages as $stage): ?>
                     <div class="timeline-item <?= strtolower($stage['status']) ?>">
-                        <div class="dot"><?= (int) $stage['step_number'] ?></div>
+                        <div class="dot" aria-label="Office <?= (int) $stage['step_number'] ?>">
+                            <?= icon($stage['status'] === 'APPROVED' ? 'check-circle' : ($stage['status'] === 'REJECTED' ? 'alert-circle' : 'clock')) ?>
+                        </div>
                         <div>
                             <strong><?= e($stage['title']) ?></strong>
                             <small>

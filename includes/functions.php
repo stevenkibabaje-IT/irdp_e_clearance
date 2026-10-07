@@ -11,6 +11,7 @@ require_once __DIR__ . '/uploads.php';
 require_once __DIR__ . '/imports.php';
 require_once __DIR__ . '/forms.php';
 require_once __DIR__ . '/icons.php';
+require_once __DIR__ . '/clearance_progress.php';
 require_once __DIR__ . '/accounts.php';
 require_once __DIR__ . '/clearance_period.php';
 require_once __DIR__ . '/transcripts.php';

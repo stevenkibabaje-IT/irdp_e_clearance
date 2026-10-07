@@ -35,6 +35,7 @@ function icon(string $name, string $class = ''): string
         'certificate' => '<path d="M10 21H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5M7 6h8M7 10h4"/><circle cx="17" cy="15" r="4"/><path d="m14 18-1 5 4-2 4 2-1-5"/>',
         'alert-triangle' => '<path d="m10.3 4-8 14a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0ZM12 9v4M12 17h.01"/>',
         'info' => '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>',
+        'alert-circle' => '<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/>',
         'shield' => '<path d="m12 3 8 3v6c0 5-4 8-8 10-4-2-8-5-8-10V6Zm-4 9 3 3 5-6"/>',
         'eye' => '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
     ];
