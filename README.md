@@ -8,7 +8,7 @@ The theme uses IRDP green `#60BA6D`, dark-green accents `#075D39`, deep-green he
 
 The web logo is the official PNG from [IRDP's Online Application System](https://oas.irdp.ac.tz/images/logo-sm.png), stored locally as `assets/img/irdp-logo-web.png`. Landing, login and dashboard navigation show the full emblem on a white surface without cropping the motto. The login card also shows the logo on phones. The original JPEG is retained for PDF documents.
 
-The home page uses a compact introduction, a short feature row and a small footer with click-to-call support at `0659913570` and `0662632565`. Help / Msaada stays collapsed until opened, with Swahili guidance for login, password recovery, clearance progress, resubmissions and clearance transcripts. The page grows naturally on small screens or with enlarged text.
+The home page uses a compact introduction, a short feature row and a small footer with click-to-call support at `0659913570` and `0662632565`. Help / Msaada stays collapsed until opened, with Swahili guidance matching the current flow: login, entry-fee control number and receipt, Finance approval before starting, clearance-period restrictions, independent office reviews, corrections and evidence, separate Finance debts, transcript download, same-browser password recovery, staff responsibilities and session expiry. Ordered instructions use the same button labels and upload limits as the application. The page grows naturally on small screens or with enlarged text.
 
 The layout adapts to phones, tablets and desktops. At widths up to 1024px, navigation opens as a drawer with a backdrop, Escape-to-close and keyboard focus containment. Dashboard cards and forms stack as space decreases; wide tables scroll within their own labelled regions.
 
