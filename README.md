@@ -6,6 +6,10 @@ Contributions are welcome through forks and pull requests at [stevenkibabaje-IT/
 
 The theme uses IRDP green `#60BA6D`, dark-green accents `#075D39`, deep-green headings `#06452C`, a light background and white surfaces. Roboto is hosted locally under `assets/fonts`, with its included SIL Open Font License. Login, landing page and shared dashboards use the same green theme; light-green buttons use dark text for contrast.
 
+The web logo is the official PNG from [IRDP's Online Application System](https://oas.irdp.ac.tz/images/logo-sm.png), stored locally as `assets/img/irdp-logo-web.png`. Landing, login and dashboard navigation show the full emblem on a white surface without cropping the motto. The login card also shows the logo on phones. The original JPEG is retained for PDF documents.
+
+The home page includes a Help / Msaada section with expandable Swahili guidance for login, password recovery, clearance progress, resubmissions and certificates. Its footer and help panel provide click-to-call support at `0659913570` and `0662632565`, with links to login and password recovery.
+
 The layout adapts to phones, tablets and desktops. At widths up to 1024px, navigation opens as a drawer with a backdrop, Escape-to-close and keyboard focus containment. Dashboard cards and forms stack as space decreases; wide tables scroll within their own labelled regions. Certificate pages reflow on small screens while retaining the A4 landscape print layout.
 
 Select the **accessibility icon** at the bottom right of the landing page, login page or inside the system to enlarge text up to 200%, enable high contrast, or reset the display. Preferences are saved in this browser. The login password field uses an eye icon to show or hide the password; icon controls retain screen-reader labels and keyboard access. Keyboard users can use the skip link, Tab/Enter, and Escape to close mobile navigation. Form labels, help and errors are linked for screen readers; reduced-motion preferences are respected.

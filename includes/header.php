@@ -23,6 +23,7 @@ if ($u) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="IRDP Student Clearance System">
     <title><?= e($pageTitle) ?> | IRDP</title>
+    <link rel="icon" type="image/png" href="<?= e(url('assets/img/irdp-logo-web.png')) ?>">
     <link rel="preload" href="<?= e(url('assets/fonts/roboto-latin.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="<?= e(url('assets/css/style.css?v=' . filemtime(__DIR__.'/../assets/css/style.css'))) ?>">
 </head>
@@ -34,7 +35,7 @@ if ($u) {
         <aside class="sidebar" id="sidebar" aria-label="Main navigation">
             <button class="btn secondary navigation-close" id="navigationClose" type="button"><?= icon('x') ?> Close navigation</button>
             <div class="sidebar-brand">
-                <img src="<?= e(url('assets/img/irdp-logo.jpg')) ?>" alt="IRDP logo">
+                <img class="irdp-emblem" src="<?= e(url('assets/img/irdp-logo-web.png')) ?>" width="60" height="60" alt="Institute of Rural Development Planning (IRDP) logo">
                 <div>
                     <strong>IRDP</strong>
                     <span>Student Clearance</span>
