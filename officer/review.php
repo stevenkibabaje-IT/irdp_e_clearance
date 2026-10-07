@@ -67,8 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         verify_csrf();
         process_stage_decision($pdo,$stageId,(int)$u['id'],$_POST,$detailFields);
         flash('success', $isFinance
-            ? (($_POST['action']??'') === 'REJECTED' ? 'Control number sent to the student. Awaiting a payment receipt.' : 'Payment receipt approved. Clearance is complete.')
-            : (($_POST['action']??'')==='REJECTED'?'Stage rejected. Awaiting student response and evidence.':'Stage approved. The student can continue to the next clearance stage.'));
+            ? (($_POST['action']??'') === 'REJECTED' ? 'Control number sent to the student. Awaiting a payment receipt.' : 'Payment receipt approved. Clearance completes when all 11 offices approve.')
+            : (($_POST['action']??'')==='REJECTED'?'Stage rejected. Awaiting student response and evidence. Other offices can continue reviewing.':'Stage approved. Clearance completes when all 11 offices approve.'));
         redirect('officer/dashboard.php');
     } catch (Throwable $e) {
         $error=page_error($e,$errors);
@@ -150,7 +150,7 @@ require_once __DIR__ . '/../includes/header.php';
             <p class="muted">Complete the fields that apply to your office, then approve or reject the stage.</p>
         <?php endif; ?>
         <?php if($canAcceptCorrection): ?>
-            <div class="alert info">The fields below show the previous office findings. After verifying the student's response and any attached files, choose <strong><?= e($approvalLabel) ?></strong> only when all office requirements have been resolved. This clears remaining amounts and missing-item findings for this review and opens the next stage. The previous rejection stays in the history.</div>
+            <div class="alert info">The fields below show the previous office findings. After verifying the student's response and any attached files, choose <strong><?= e($approvalLabel) ?></strong> only when all office requirements have been resolved. This clears remaining amounts and missing-item findings for this office. Other offices review independently. The previous rejection stays in the history.</div>
         <?php endif; ?>
 
         <form method="post">
@@ -200,7 +200,7 @@ require_once __DIR__ . '/../includes/header.php';
                     type="submit"
                     name="action"
                     value="REJECTED"
-                    onclick="<?= $isFinance ? "return confirmAction('Send this control number to the student and request a payment receipt?');" : "document.getElementById('comments').required=true;document.getElementById('corrective_instructions').required=true;return confirmAction('Reject this stage? The entire clearance will be paused.');" ?>"
+                    onclick="<?= $isFinance ? "return confirmAction('Send this control number to the student and request a payment receipt?');" : "document.getElementById('comments').required=true;document.getElementById('corrective_instructions').required=true;return confirmAction('Reject this office stage and request student corrections? Other offices can continue.');" ?>"
                 >
                     <?= icon('x-circle') ?> Reject
                 </button>

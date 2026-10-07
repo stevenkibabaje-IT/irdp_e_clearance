@@ -22,6 +22,10 @@ Emergency Review, Continuity, Escalations and Appeals, and Settings and Authorit
 
 New requests require active office reviewers for all eleven stages. Stage 7 also requires the reviewer's matching department. Review permissions continue to be enforced for every decision and evidence download. Existing Supervisor accounts use the ordinary officer dashboard and can review only their assigned stages with office access.
 
+All eleven offices start as PENDING and can review in any order. A rejection affects only that office; PAUSED indicates student action while other officers continue reviewing. Resubmission updates only the rejected office and retains PAUSED if another rejection remains. Finance can request payment and approve a valid receipt before other offices finish. Completion and document issuance occur after the last outstanding office approves, regardless of its stage number, with all eleven approvals and liability checks still required.
+
+The automatic 2026_parallel_clearance_v1 upgrade opens LOCKED stages on IN_PROGRESS/PAUSED requests, initializes their review cycles and preserves decisions, evidence, assignments and issued documents. Completed and cancelled requests remain unchanged. It runs once under the installation lock; normal requests continue to bypass migrations. Run tests/parallel_clearance_test.php against an isolated database to verify upgrade preservation and repeatability.
+
 Historical database tables and records are retained for compatibility with existing installations. There is no automatic availability/delegation routing or escalation processing.
 
 ## Finance payment review
@@ -44,9 +48,9 @@ An administrator opens Password Reset Requests, selects Review request, verifies
 
 Reviewers must provide both a rejection reason and corrective instructions. Students open the rejected stage from their status page, enter a response and optionally attach up to five PDF/JPG/PNG files, each at most 5MB. Files undergo MIME/content checks, receive generated private names and remain linked to the relevant review cycle. Authorized access is limited to the Student and assigned reviewers with matching office access.
 
-Resubmission creates a new review cycle only for that stage. Earlier approved stages stay approved and later stages stay locked. Prior comments, decisions, responses and evidence remain visible in history. Students may submit further corrections after a rejection without an appeal. Every correction requires a new office decision. Final certificates require all eleven approvals and cleared liabilities.
+Resubmission creates a new review cycle only for that stage. Existing approved stages stay approved and other pending offices can continue reviewing. Prior comments, decisions, responses and evidence remain visible in history. Students may submit further corrections after a rejection without an appeal. Every correction requires a new office decision. Final documents require all eleven approvals and cleared liabilities.
 
-The authorized officer verifies the current submission and uses **Approve evidence and continue** for attached files, or **Approve correction and continue** for an explanation verified with the office. This explicit confirmation resolves previous amounts, missing items and office decisions and opens the next stage; it preserves the original rejection findings. A response alone never approves a stage. Confirmation rejects stale review cycles, unauthorized officers and submissions with neither a current response nor files.
+The authorized officer verifies the current submission and uses **Approve evidence and continue** for attached files, or **Approve correction and continue** for an explanation verified with the office. This explicit confirmation resolves previous amounts, missing items and the office decision; it preserves the original rejection findings. A response alone never approves a stage. Confirmation rejects stale review cycles, unauthorized officers and submissions with neither a current response nor files.
 
 ## Profile pictures
 
@@ -64,7 +68,7 @@ The XML reader accepts both default and prefixed namespaces, including valid emp
 
 Run `php tests/features_test.php "mysql:host=127.0.0.1;port=3306;charset=utf8mb4"` from the project directory. The suite creates a randomly named isolated database and removes it afterward. Optional credentials use IRDP_TEST_USER and IRDP_TEST_PASSWORD. The test account requires CREATE/DROP DATABASE privileges. PHP CLI, curl support and a free local port 18087 are required.
 
-Coverage includes active office assignment, legacy availability records being ignored, blocked unauthorized/inactive reviewers, repeated student corrections without appeals, rejection history, evidence downloads, all eleven sequential approvals and certificate checks, concurrent decisions, private profile images, passwords and account recovery, import validation, transcript generation without any results tables, clearance-only PDF content, stable downloads, transcript verification and revocation, and migration preservation. HTTP checks also verify that removed feature URLs accept no former actions and that admin/reviewer menus do not expose them.
+Coverage includes active office assignment, legacy availability records being ignored, blocked unauthorized/inactive reviewers, repeated student corrections without appeals, rejection history, evidence downloads, all eleven independent approvals, early Finance review, multiple rejected offices, final non-Finance completion and certificate checks, concurrent decisions, private profile images, passwords and account recovery, import validation, transcript generation without any results tables, clearance-only PDF content, stable downloads, transcript verification and revocation, and migration preservation. HTTP checks also verify that removed feature URLs accept no former actions and that admin/reviewer menus do not expose them.
 
 Run tests/validation_test.php, tests/password_accessibility_test.php and tests/spreadsheet_xml_test.php for focused checks. Run `node tests/browser_validation_test.js` for the JavaScript form-control harness. See [Input validation audit](INPUT_VALIDATION_AUDIT.md) for the accepted rules, fixes and test coverage.
 

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/** Start one request per academic cycle and create its ordered office review stages. */
+/** Start one request per academic cycle with all office reviews available. */
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_role('STUDENT');
@@ -64,31 +64,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
 
-        foreach ($steps as $index => $step) {
+        $startedAt = date('Y-m-d H:i:s');
+        foreach ($steps as $step) {
             $departmentId = (int) $step['step_number'] === 7 ? $studentDepartmentId : 0;
             $officerId = find_office_reviewer($pdo, (int) $step['office_id'], $departmentId);
             if ($officerId === null) {
                 throw new RuntimeException('No active officer is assigned to '.$step['title'].'. Contact the administrator.');
             }
-            $status = $index === 0 ? 'PENDING' : 'LOCKED';
-            $startedAt = $index === 0 ? date('Y-m-d H:i:s') : null;
-
             $insertStage->execute([
                 $requestId,
                 (int) $step['id'],
                 (int) $step['office_id'],
                 $officerId ? (int) $officerId : null,
-                $status,
+                'PENDING',
                 $startedAt,
                 $officerId ? (int)$officerId : null,
                 $startedAt,
             ]);
             $stageId = (int)$pdo->lastInsertId();
             ensure_review_cycle($pdo, $stageId);
-            if ($index === 0) {
-                route_clearance_stage($pdo, $requestId, $stageId, (int) $u['id']);
-                notify_stage($pdo, stage_context($pdo, $stageId), 'Clearance started', 'Stage 1 is now actionable.');
-            }
+            route_clearance_stage($pdo, $requestId, $stageId, (int) $u['id']);
+            notify_stage($pdo, stage_context($pdo, $stageId), 'Clearance started', 'Your office review is ready. Each office can review independently.');
         }
 
         audit(
@@ -100,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
 
         $pdo->commit();
-        flash('success', 'Clearance started successfully. Open Clearance Status to see the current stage.');
+        flash('success', 'Clearance started successfully. All 11 offices can now review their stages.');
         redirect('student/status.php');
     } catch (PDOException $e) {
         if ($pdo->inTransaction()) { $pdo->rollBack(); }
@@ -130,7 +126,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div>
         <span class="eyebrow">NEW REQUEST</span>
         <h1>Start Clearance</h1>
-        <p class="muted">The system will create the 11 stages in the approved physical-form order.</p>
+        <p class="muted">All 11 offices can review independently. Clearance completes after every office approves.</p>
     </div>
 </div>
 

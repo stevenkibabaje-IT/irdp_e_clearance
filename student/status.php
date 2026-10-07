@@ -55,7 +55,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     <?php if ($request['status'] === 'PAUSED'): ?>
         <div class="alert danger" style="margin-top:14px;">
-            An office requires action. Find the stage below and follow its instructions. For Finance, pay using the displayed control number and upload your payment receipt.
+            One or more offices require action. Find each rejected stage below and follow its instructions. Other offices can continue reviewing. For Finance, pay using the displayed control number and upload your payment receipt.
         </div>
     <?php elseif ($request['status'] === 'COMPLETED'): ?>
         <div class="alert success" style="margin-top:14px;">
@@ -91,7 +91,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <p><strong>Corrective instructions:</strong> <?= e($stage['corrective_instructions'] ?: 'Contact this office to confirm the correction required.') ?></p>
                     <?php student_evidence_form($pdo,$stage); ?>
                 <?php elseif (in_array($stage['status'],['PENDING','IN_REVIEW'],true) && (int)$stage['resubmissions']>0): ?>
-                    <div class="alert info">Your response and evidence were submitted to <?= e($stage['office']) ?>. Awaiting office review. The next stage will open after approval.</div>
+                    <div class="alert info">Your response and evidence were submitted to <?= e($stage['office']) ?>. Awaiting office review. Other offices can continue reviewing independently.</div>
                 <?php endif; ?>
             </div>
 

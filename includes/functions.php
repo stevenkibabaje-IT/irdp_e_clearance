@@ -180,7 +180,7 @@ function humanize_status(string $status): string
     return match (strtoupper($status)) {
         'NOT_STARTED' => 'Not Started',
         'IN_PROGRESS' => 'In Progress',
-        'PAUSED' => 'Paused',
+        'PAUSED' => 'Action required',
         'COMPLETED' => 'Completed',
         'CANCELLED' => 'Cancelled',
         'ESCALATED' => 'Escalated',
@@ -270,11 +270,10 @@ function lock_review_stage(PDO $pdo, int $requestId, int $stageId, int $officerI
     if(!$pdo->inTransaction()){throw new LogicException('Stage review requires a transaction.');}
     $stage=stage_context($pdo,$stageId,true);
     $financePaymentRequest = $allowFinancePaymentRequest && (int)$stage['step_number'] === 11
-        && $stage['status'] === 'REJECTED' && $expectedStatus === 'REJECTED' && $stage['request_status'] === 'PAUSED';
-    if((int)$stage['clearance_request_id']!==$requestId || (!$financePaymentRequest && $stage['request_status']!=='IN_PROGRESS')
+        && $stage['status'] === 'REJECTED' && $expectedStatus === 'REJECTED';
+    if((int)$stage['clearance_request_id']!==$requestId || !in_array($stage['request_status'],['IN_PROGRESS','PAUSED'],true)
        || $stage['status']!==$expectedStatus || (!$financePaymentRequest && !in_array($stage['status'],['PENDING','IN_REVIEW'],true))
        || (int)$stage['assigned_officer_id']!==$officerId || !reviewer_assignment_valid($pdo,$stage,$officerId)) {throw new RuntimeException('This stage changed or you are not its assigned office reviewer. Refresh the dashboard.');}
-    require_prerequisites($pdo,$stage);
     return $stage;
 }
 

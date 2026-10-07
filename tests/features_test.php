@@ -129,6 +129,12 @@ try{
     // Two connections must serialize decisions.
     $other=new PDO($dsn,'root','',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);$other->exec('USE '.$database);$other->exec('SET SESSION innodb_lock_wait_timeout=1');
     $pdo->beginTransaction();lock_review_stage($pdo,$request,$stage,$backup,'PENDING');$other->beginTransaction();$blocked=false;try{lock_review_stage($other,$request,$stage,$backup,'PENDING');}catch(PDOException $e){$blocked=(int)($e->errorInfo[1]??0)===1205;}finally{$other->rollBack();}$pdo->rollBack();check($blocked,'Concurrent decision bypassed request lock.');
+    $parallelOffice=$pdo->query('SELECT * FROM workflow_steps WHERE step_number=2')->fetch();
+    $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,status,started_at,actionable_at) VALUES (?,?,?,?,"PENDING",NOW(),NOW())')->execute([$request,$parallelOffice['id'],$parallelOffice['office_id'],$backup]);
+    $parallelStage=(int)$pdo->lastInsertId();
+    $pdo->beginTransaction();lock_review_stage($pdo,$request,$stage,$backup,'PENDING');$other->beginTransaction();$blocked=false;
+    try{lock_review_stage($other,$request,$parallelStage,$backup,'PENDING');}catch(PDOException $e){$blocked=(int)($e->errorInfo[1]??0)===1205;}finally{$other->rollBack();}
+    $pdo->rollBack();check($blocked,'Different office decisions bypassed the shared request lock.');
     $pdo->beginTransaction();lock_account_creation($pdo);$other->beginTransaction();$blocked=false;
     try{lock_account_creation($other);}catch(PDOException $e){$blocked=(int)($e->errorInfo[1]??0)===1205;}finally{$other->rollBack();}
     $pdo->rollBack();check($blocked,'Concurrent account/email validation bypassed the account creation lock.');$other=null;
@@ -143,9 +149,13 @@ try{
     $pdo->prepare('INSERT INTO clearance_requests(student_id,academic_year,status,started_at) VALUES (?,"2027/2028","IN_PROGRESS",NOW())')->execute([$student]);$fullRequest=(int)$pdo->lastInsertId();$fullStages=[];
     foreach($pdo->query('SELECT * FROM workflow_steps ORDER BY step_number')->fetchAll() as $workflow){
         $number=(int)$workflow['step_number'];$assigned=find_office_reviewer($pdo,(int)$workflow['office_id'],$number===7?$department:0);check($assigned!==null,'Full workflow fixture has no officer.');
-        $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status,actionable_at) VALUES (?,?,?,?,?,?,?)')->execute([$fullRequest,$workflow['id'],$workflow['office_id'],$assigned,$assigned,$number===1?'PENDING':'LOCKED',$number===1?date('Y-m-d H:i:s'):null]);$fullStages[$number]=(int)$pdo->lastInsertId();ensure_review_cycle($pdo,$fullStages[$number]);
+        $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status,actionable_at) VALUES (?,?,?,?,?,?,?)')->execute([$fullRequest,$workflow['id'],$workflow['office_id'],$assigned,$assigned,'PENDING',date('Y-m-d H:i:s')]);$fullStages[$number]=(int)$pdo->lastInsertId();ensure_review_cycle($pdo,$fullStages[$number]);
     }
-    foreach($fullStages as $number=>$id){
+    // Finance reviews first while another office requires correction; Library finishes last.
+    $sports=stage_context($pdo,$fullStages[2]);
+    process_stage_decision($pdo,$fullStages[2],(int)$sports['assigned_officer_id'],['action'=>'REJECTED','review_cycle'=>'1','amount'=>'20000','comments'=>'Fictional unresolved office finding','corrective_instructions'=>'Resolve with the office'],review_fields(2));
+    foreach([11,10,9,8,7,6,5,4,3,2,1] as $number){
+        $id=$fullStages[$number];
         $state=stage_context($pdo,$id);$fields=review_fields($number);$input=['action'=>'APPROVED','comments'=>'Fictional review','corrective_instructions'=>'','review_cycle'=>(string)$state['review_cycle']];
         foreach($fields as [$key,$label,$type]){$input[$key]=$type==='number'?'0':($type==='asset'?'AVAILABLE':'CLEARED');}
         if ($number === 11) {
@@ -213,7 +223,7 @@ try{
                 }
                 [$code]=http_call('/student/resubmit.php?stage='.$id,$upload+['evidence[0]'=>new CURLFile($receipt,'application/pdf','receipt.pdf')],$financeStudentCookie,true);
                 foreach($pdo->query('SELECT stored_name FROM stage_evidence WHERE stage_id='.$id) as $stored){$files[]=private_path('evidence',$stored['stored_name']);}
-                check($code===302&&stage_context($pdo,$id)['status']==='PENDING'&&stage_context($pdo,$id)['request_status']==='IN_PROGRESS','Receipt submission failed or skipped review.');
+                check($code===302&&stage_context($pdo,$id)['status']==='PENDING'&&stage_context($pdo,$id)['request_status']==='PAUSED','Receipt submission failed or cleared another office rejection.');
                 $payment=finance_payment_details(stage_context($pdo,$id));
                 check($payment['payment_status']==='AWAITING_REVIEW'&&$payment['receipt_control_number']===$issued,'Receipt not bound to control number.');
                 check(!certificate_release_allowed($pdo,$fullRequest),'Receipt upload released certificate.');
@@ -234,13 +244,15 @@ try{
                     check($code===302&&stage_context($pdo,$id)['status']==='REJECTED'&&!finance_receipt_available($pdo,stage_context($pdo,$id)),'Reject failed to invalidate receipt.');
                 }else{
                     [$code]=http_call('/officer/review.php?stage='.$id,$decision,$financeCookie,true);
-                    check($code===302&&stage_context($pdo,$id)['status']==='APPROVED'&&stage_context($pdo,$id)['request_status']==='COMPLETED','Finance approval did not complete clearance.');
+                    check($code===302&&stage_context($pdo,$id)['status']==='APPROVED'&&stage_context($pdo,$id)['request_status']==='PAUSED','Finance could not approve independently or cleared another office rejection.');
+                    check(stage_context($pdo,$fullStages[1])['status']==='PENDING'&&!certificate_release_allowed($pdo,$fullRequest)
+                        &&transcript_for_student($pdo,$student,$fullRequest)===null,'Early Finance approval released the transcript before all offices approved.');
                 }
             }
             check(finance_details_clear(finance_payment_details(stage_context($pdo,$id))),'Approved payment did not clear finance.');
             check((int)$pdo->query('SELECT COUNT(*) FROM stage_evidence WHERE stage_id='.$id)->fetchColumn()===2,'Rejected payment history lost.');
             $pdo->prepare('UPDATE clearance_period SET cycle_id=? WHERE id=1')->execute([$periodBeforeFinance]);
-            echo "PASS: Finance control-only review, mandatory/private receipts, owner/control/cycle checks, rejections and final approval\n";
+            echo "PASS: independent early Finance review, mandatory/private receipts, owner/control/cycle checks and no premature completion\n";
             continue;
         }
         if(in_array($number,[2,8],true)) {
@@ -248,18 +260,31 @@ try{
             if($number===2){$reject['amount']='20000';}
             if($number===8){$reject['key']='MISSING';$reject['bucket']='MISSING';$reject['so_has_to_pay']='20000';$reject['nothing_amount']='5000';}
             rejected(fn()=>process_stage_decision($pdo,$id,(int)$state['assigned_officer_id'],array_replace($reject,['action'=>'APPROVED_CORRECTION']),$fields),'Correction approval bypassed the required student resubmission.');
-            process_stage_decision($pdo,$id,(int)$state['assigned_officer_id'],$reject,$fields);
-            check(stage_context($pdo,$fullStages[$number-1])['status']==='APPROVED','Rejection undid prior approval.');
-            if($number<11){check(stage_context($pdo,$fullStages[$number+1])['status']==='LOCKED','Rejection unlocked later stage.');}
+            $otherOfficeBefore=stage_context($pdo,$fullStages[1]);
+            if($state['status']!=='REJECTED'){process_stage_decision($pdo,$id,(int)$state['assigned_officer_id'],$reject,$fields);}
+            check(stage_context($pdo,$fullStages[1])===$otherOfficeBefore,'Rejection changed another office stage.');
+            check(stage_context($pdo,$fullStages[11])['status']==='APPROVED','Rejection undid the independent Finance approval.');
             resubmit_stage($pdo,$id,$studentUser,'Correction verified with the office; no attachment needed.',[]);
+            if($number===8){check(stage_context($pdo,$id)['request_status']==='PAUSED'&&stage_context($pdo,$fullStages[2])['status']==='REJECTED','Resubmitting one office cleared another rejected office.');}
             $input=array_replace($reject,['action'=>'APPROVED_CORRECTION','review_cycle'=>'2']);
         }
-        process_stage_decision($pdo,$id,(int)$state['assigned_officer_id'],$input,$fields);
+        if(in_array($number,[10,1],true)){
+            $independentCookie=__DIR__.'/feature-independent-office-'.$number.'.cookies';$files[]=$independentCookie;
+            test_login($number===10?'ADM001':'LIB001',$number===10?'Kimaro@2026':'Mrema@2026',$independentCookie);
+            [$code,$independentQueue]=http_call('/officer/dashboard.php',[],$independentCookie);
+            check($code===200&&str_contains($independentQueue,'officer/review.php?stage='.$id.'"'),'An independent officer lost the Review action while another office needed correction.');
+            [$code,$independentReview]=http_call('/officer/review.php?stage='.$id,[],$independentCookie);
+            check($code===200,'Independent office review is unavailable.');
+            [$code,$independentResponse]=http_call('/officer/review.php?stage='.$id,$input+['csrf_token'=>token_from($independentReview),'stage_id'=>(string)$id],$independentCookie,true);
+            check($code===302,'Independent office approval failed: '.strip_tags($independentResponse));
+        }else{process_stage_decision($pdo,$id,(int)$state['assigned_officer_id'],$input,$fields);}
         check(liabilities_clear(json_decode(stage_context($pdo,$id)['details_json'],true),$number),'Verified correction retained unresolved liabilities or missing items.');
         rejected(fn()=>process_stage_decision($pdo,$id,(int)$state['assigned_officer_id'],$input,$fields),'Duplicate decision accepted.');
+        if($number!==1){check(stage_context($pdo,$id)['request_status']!=='COMPLETED'&&transcript_for_student($pdo,$student,$fullRequest)===null,'Clearance completed before the final office approved.');}
     }
+    check(stage_context($pdo,$fullStages[1])['request_status']==='COMPLETED','The last non-Finance office did not complete clearance.');
     check(certificate_release_allowed($pdo,$fullRequest),'Complete liability-free workflow did not pass release.');check((int)$pdo->query('SELECT COUNT(*) FROM certificates WHERE clearance_request_id='.$fullRequest)->fetchColumn()===1,'Certificate not issued exactly once.');
-    echo "PASS: all 11 sequential decisions, rejection/resubmission, prerequisite locks and certificate release\n";
+    echo "PASS: all 11 independent office decisions, multiple rejections/resubmissions and final non-Finance completion\n";
     $transcript=transcript_for_student($pdo,$student,$fullRequest);
     check($transcript&&$transcript['result_source']==='CLEARANCE','Final clearance did not generate its clearance transcript.');
     $clearanceSnapshot=json_decode($transcript['snapshot_json'],true,512,JSON_THROW_ON_ERROR);
@@ -331,11 +356,11 @@ try{
     $bad=__DIR__.'/invalid-upload.png';$files[]=$bad;file_put_contents($bad,'<?php echo "invalid";');[$code,$body]=http_call('/student/profile.php',[],$cookie);[$code,$body]=http_call('/student/profile.php',['csrf_token'=>token_from($body),'mode'=>'upload','picture'=>new CURLFile($bad,'image/png','invalid.png')],$cookie,true);check($code===200&&str_contains($body,'content type'),'Invalid profile image accepted.');
     [$code,$body]=http_call('/student/profile.php',[],$cookie);[$code]=http_call('/student/profile.php',['csrf_token'=>token_from($body),'mode'=>'remove'],$cookie,true);check($code===302&&!is_file(private_path('profiles',$profileName)),'Profile removal failed.');
     echo "PASS: HTTP CSRF, direct authorization, private storage and profile upload/resize/replace/remove\n";
-    // Latest student request: exercise reject -> visible upload -> office review -> next stage.
+    // Rejected office correction leaves the other office available for review.
     [$request,$stage]=fixture_stage($pdo,$student,$office,$step,$primary);
     $nextWorkflow=$pdo->query('SELECT * FROM workflow_steps WHERE step_number=2')->fetch();
     $nextReviewer=find_office_reviewer($pdo,(int)$nextWorkflow['office_id']);
-    $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status) VALUES (?,?,?,?,?,"LOCKED")')->execute([$request,$nextWorkflow['id'],$nextWorkflow['office_id'],$nextReviewer,$nextReviewer]);$nextStage=(int)$pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status) VALUES (?,?,?,?,?,"PENDING")')->execute([$request,$nextWorkflow['id'],$nextWorkflow['office_id'],$nextReviewer,$nextReviewer]);$nextStage=(int)$pdo->lastInsertId();
     $officerCookie=__DIR__.'/feature-officer.cookies';$files[]=$officerCookie;test_login('LIB001','Mrema@2026',$officerCookie);
     [$code,$review]=http_call('/officer/review.php?stage='.$stage,[],$officerCookie);check($code===200,'Office review unavailable.');
     $pdo->prepare('UPDATE offices SET active=0 WHERE id=?')->execute([$office]);
@@ -358,27 +383,27 @@ try{
     $pdf=__DIR__.'/fictional-evidence.pdf';$files[]=$pdf;file_put_contents($pdf,"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\n%%EOF\n");
     [$code,$body]=http_call('/student/resubmit.php?stage='.$stage,['csrf_token'=>$csrf,'stage_id'=>(string)$stage,'mode'=>'resubmit','response'=>'Fictional receipt attached','evidence[0]'=>new CURLFile($pdf,'application/pdf','receipt.pdf')],$cookie,true);check($code===302,'Evidence resubmission failed: '.strip_tags($body));$s=$pdo->query('SELECT * FROM stage_evidence WHERE stage_id='.$stage.' ORDER BY id DESC LIMIT 1');$file=$s->fetch();check((bool)$file,'Evidence not recorded.');$files[]=private_path('evidence',$file['stored_name']);
     [$code,$body]=http_call('/files/evidence.php?id='.$file['id'],[],$cookie);check($code===200&&str_starts_with($body,'%PDF-'),'Owner download failed.');
-    check(stage_context($pdo,$stage)['status']==='PENDING'&&stage_context($pdo,$nextStage)['status']==='LOCKED','Evidence submission skipped office approval.');
+    check(stage_context($pdo,$stage)['status']==='PENDING'&&stage_context($pdo,$nextStage)['status']==='PENDING','Evidence submission approved a stage or blocked another office.');
     [$code,$status]=http_call('/student/status.php',[],$cookie);check($code===200&&str_contains($status,'Awaiting office review')&&!str_contains($status,'name="evidence[]"'),'Student status did not reflect submitted evidence.');
     [$code,$queue]=http_call('/officer/dashboard.php',[],$officerCookie);check($code===200&&str_contains($queue,'Resubmitted: review student evidence'),'Responsible office did not see resubmission.');
     [$code,$review]=http_call('/officer/review.php?stage='.$stage,[],$officerCookie);check($code===200&&str_contains($review,'Student resubmission')&&str_contains($review,'Fictional receipt attached')&&str_contains($review,'receipt.pdf')&&str_contains($review,'value="APPROVED_EVIDENCE"'),'Office did not receive the student response and evidence approval action.');
     [$code,$body]=http_call('/files/evidence.php?id='.$file['id'],[],$officerCookie);check($code===200&&str_starts_with($body,'%PDF-'),'Responsible office cannot open evidence.');
     $notification=$pdo->prepare('SELECT COUNT(*) FROM notifications WHERE user_id=? AND title="Clearance stage resubmitted"');$notification->execute([$primary]);check((int)$notification->fetchColumn()>0,'Responsible office was not notified.');
     // The approval form still contains the old 500,000 finding. Evidence
-    // acceptance must resolve it and unlock the next stage in one transaction.
-    [$code,$body]=http_call('/officer/review.php?stage='.$stage,['csrf_token'=>token_from($review),'stage_id'=>(string)$stage,'review_cycle'=>(string)stage_context($pdo,$stage)['review_cycle'],'action'=>'APPROVED_EVIDENCE','comments'=>'Missing return receipt','corrective_instructions'=>'Attach the returned-item receipt','amount'=>'500000'],$officerCookie,true);check($code===302&&stage_context($pdo,$stage)['status']==='APPROVED'&&stage_context($pdo,$nextStage)['status']==='PENDING','Office evidence approval did not unlock the next stage.');
+    // acceptance resolves this office without changing another office's pending review.
+    [$code,$body]=http_call('/officer/review.php?stage='.$stage,['csrf_token'=>token_from($review),'stage_id'=>(string)$stage,'review_cycle'=>(string)stage_context($pdo,$stage)['review_cycle'],'action'=>'APPROVED_EVIDENCE','comments'=>'Missing return receipt','corrective_instructions'=>'Attach the returned-item receipt','amount'=>'500000'],$officerCookie,true);check($code===302&&stage_context($pdo,$stage)['status']==='APPROVED'&&stage_context($pdo,$nextStage)['status']==='PENDING','Office evidence approval failed or changed another office review.');
     $approvedStage=stage_context($pdo,$stage);check(json_decode($approvedStage['details_json'],true)['amount']==='0'&&$approvedStage['comments']==='Evidence verified; office requirements resolved.'&&$approvedStage['corrective_instructions']==='','Evidence approval retained unresolved office findings.');
     $originalDetails=$pdo->query('SELECT details_json FROM stage_actions WHERE stage_id='.$stage.' AND action="REJECTED" ORDER BY id LIMIT 1')->fetchColumn();check(json_decode($originalDetails,true)['amount']==='500000','Evidence approval erased the original rejection finding.');
     [$code,$history]=http_call('/student/resubmit.php?stage='.$stage,[],$cookie);check($code===200&&str_contains($history,'Missing return receipt')&&str_contains($history,'receipt.pdf'),'Approval lost rejection or evidence history.');
-    echo "PASS: HTTP rejection, visible student evidence form, office review and next-stage continuation\n";
+    echo "PASS: HTTP rejection, visible student evidence form and independent office evidence review\n";
     // Reproduce the live failure: an explanation-only resubmission retains
     // the previous 20,000 finding until the officer verifies the correction.
     [$responseRequest,$responseStage]=fixture_stage($pdo,$student,$office,$step,$primary);
-    $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status) VALUES (?,?,?,?,?,"LOCKED")')->execute([$responseRequest,$nextWorkflow['id'],$nextWorkflow['office_id'],$backup,$backup]);$responseNext=(int)$pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status) VALUES (?,?,?,?,?,"PENDING")')->execute([$responseRequest,$nextWorkflow['id'],$nextWorkflow['office_id'],$backup,$backup]);$responseNext=(int)$pdo->lastInsertId();
     process_stage_decision($pdo,$responseStage,$primary,['action'=>'REJECTED','review_cycle'=>'1','amount'=>'20000','comments'=>'Payment pending','corrective_instructions'=>'Verify payment with the office'],review_fields(1));
     [$code,$responseForm]=http_call('/student/resubmit.php?stage='.$responseStage,[],$cookie);
     [$code,$body]=http_call('/student/resubmit.php?stage='.$responseStage,['csrf_token'=>token_from($responseForm),'stage_id'=>(string)$responseStage,'mode'=>'resubmit','response'=>'Payment verified with the office.'], $cookie,true);
-    check($code===302&&stage_context($pdo,$responseNext)['status']==='LOCKED','Response-only submission bypassed office review.');
+    check($code===302&&stage_context($pdo,$responseStage)['status']==='PENDING'&&stage_context($pdo,$responseNext)['status']==='PENDING','Response-only submission bypassed office approval or blocked another office.');
     [$code,$responseReview]=http_call('/officer/review.php?stage='.$responseStage,[],$officerCookie);
     check($code===200&&str_contains($responseReview,'value="APPROVED_CORRECTION"')&&str_contains($responseReview,'Approve correction and continue'),'Officer cannot approve a verified explanation-only correction.');
     $approval=['csrf_token'=>token_from($responseReview),'stage_id'=>(string)$responseStage,'review_cycle'=>'2','action'=>'APPROVED_CORRECTION','amount'=>'20000','comments'=>'Payment pending','corrective_instructions'=>'Verify payment with the office'];
@@ -394,7 +419,7 @@ try{
     $oldFinding=$pdo->query('SELECT details_json FROM stage_actions WHERE stage_id='.$responseStage.' AND action="REJECTED"')->fetchColumn();
     check(json_decode($oldFinding,true)['amount']==='20000','Verified response-only correction erased rejection history.');
     [$code,$continued]=http_call('/student/status.php',[],$cookie);
-    check($code===200&&str_contains($continued,'id="stage-'.$responseStage.'"')&&str_contains($continued,'id="stage-'.$responseNext.'"')&&str_contains($continued,'APPROVED')&&str_contains($continued,'Pending'),'Student cannot track the next stage after correction approval.');
+    check($code===200&&str_contains($continued,'id="stage-'.$responseStage.'"')&&str_contains($continued,'id="stage-'.$responseNext.'"')&&str_contains($continued,'APPROVED')&&str_contains($continued,'Pending'),'Student cannot track the remaining office after correction approval.');
     echo "PASS: explanation-only rejection correction, office approval, preserved history, stale/unauthorized guards and student continuation\n";
     $wrongCookie=__DIR__.'/feature-wrong.cookies';$files[]=$wrongCookie;test_login('IRDP/BTCRP/MA25/0002','MFINANGA0002',$wrongCookie);[$code]=http_call('/files/evidence.php?id='.$file['id'],[],$wrongCookie);check($code===403,'Unauthorized evidence download allowed.');
     [$code]=http_call('/files/profile.php?student='.$student,[],$wrongCookie);check($code===403,'Unauthorized profile view allowed.');
@@ -515,7 +540,7 @@ try{
     check($code===200&&str_contains($invalidLogin,'valid current password'),'Control characters were accepted in login passwords.');
     echo "PASS: HTTP invalid/Unicode/nested inputs, duplicate/active references, period and report ranges, strict IDs, money and certificate verification guards\n";
     [$assignedRequest,$assignedStage]=fixture_stage($pdo,$student,$office,$step,$primary);
-    $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status) VALUES (?,?,?,?,?,"LOCKED")')->execute([$assignedRequest,$nextWorkflow['id'],$nextWorkflow['office_id'],$backup,$backup]);$assignedNext=(int)$pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status) VALUES (?,?,?,?,?,"PENDING")')->execute([$assignedRequest,$nextWorkflow['id'],$nextWorkflow['office_id'],$backup,$backup]);$assignedNext=(int)$pdo->lastInsertId();
     [$code,$adminDashboard]=http_call('/admin/dashboard.php',[],$adminCookie);
     check($code===200,'Admin dashboard unavailable.');
     foreach(['admin/emergency.php','admin/continuity.php','admin/settings.php','supervisor/dashboard.php','admin/academic_results.php','Academic Results','Escalations','Emergency','Settings and Authority'] as $removed) {
@@ -656,7 +681,8 @@ try{
     check($code===302,'Normal student start failed after feature removal.');
     $started=get_clearance_for_cycle($pdo,(int)$pdo->query('SELECT id FROM students WHERE user_id='.$ids['IRDP/BTCCD/MA25/0003'])->fetchColumn(),$cycle);
     $startedStages=get_clearance_stages($pdo,(int)$started['id']);
-    check(count($startedStages)===11&&$startedStages[0]['status']==='PENDING'&&count(array_filter($startedStages,fn($row)=>$row['status']==='LOCKED'))===10,'Student start did not create the eleven sequential stages.');
+    check(count($startedStages)===11&&count(array_filter($startedStages,fn($row)=>$row['status']==='PENDING'&&$row['started_at']!==null&&$row['actionable_at']!==null))===11,'Student start did not open all eleven office reviews.');
+    check((int)$pdo->query('SELECT COUNT(*) FROM review_cycles rc INNER JOIN clearance_stages cs ON cs.id=rc.stage_id WHERE cs.clearance_request_id='.(int)$started['id'].' AND rc.opened_at IS NOT NULL AND rc.closed_at IS NULL')->fetchColumn()===11,'Student start did not open all eleven review cycles.');
     foreach($startedStages as $startedStage){check(reviewer_assignment_valid($pdo,stage_context($pdo,(int)$startedStage['id']),(int)$startedStage['assigned_officer_id']),'New stage has no permitted office reviewer.');}
     $closedCookie=__DIR__.'/feature-closed.cookies';$files[]=$closedCookie;
     test_login('IRDP/ODICT/MA25/0004','MALLYA0004',$closedCookie);

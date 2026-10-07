@@ -15,7 +15,7 @@ Contributions to the IRDP Student Clearance System are welcome.
    ```
 
 3. Follow [README.md](README.md) to run PHP/MySQL with XAMPP. Each developer uses their own local database and uploads.
-4. Make a focused change. Preserve office authorization, the eleven-stage approval order, private receipt access, CSRF protection and input validation.
+4. Make a focused change. Preserve office authorization, independent office reviews with all eleven approvals required for completion, private receipt access, CSRF protection and input validation.
 5. Run the checks relevant to your change:
 
    ```powershell

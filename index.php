@@ -75,7 +75,7 @@ if (current_user()) {
                 </details>
                 <details>
                     <summary>Ninafuatiliaje hatua au kurekebisha clearance iliyokataliwa?</summary>
-                    <p>Baada ya kuingia, fungua <strong>My Clearance</strong> kuona maendeleo ya hatua zote 11. Hatua ikikataliwa, soma sababu na maelekezo ya ofisi, rekebisha kilichoombwa, kisha tuma maelezo na ushahidi kupitia sehemu ya kutuma upya. Ofisi ikikubali marekebisho, hatua inayofuata itafunguliwa.</p>
+                    <p>Baada ya kuingia, fungua <strong>My Clearance</strong> kuona maendeleo ya ofisi zote 11. Kila ofisi inafanya clearance kwa wakati wake bila kusubiri nyingine. Ofisi ikikataa, soma sababu na maelekezo yake, rekebisha kilichoombwa, kisha tuma maelezo na ushahidi kupitia sehemu ya kutuma upya. Ofisi nyingine zinaendelea kufanya clearance wakati unasubiri marekebisho yahakikiwe.</p>
                 </details>
                 <details>
                     <summary>Clearance Transcript inapatikana lini?</summary>

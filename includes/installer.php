@@ -6,7 +6,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 
 // Bump when schema or initial reference-data requirements change.
-const APPLICATION_SCHEMA_VERSION = '2026_runtime_v8_clearance_transcript';
+const APPLICATION_SCHEMA_VERSION = '2026_runtime_v9_parallel_clearance';
 
 function database_schema_ready(PDO $db): bool
 {
@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS clearance_stages (
     workflow_step_id INT NOT NULL,
     office_id INT NOT NULL,
     assigned_officer_id INT NULL,
-    status ENUM('LOCKED','PENDING','IN_REVIEW','APPROVED','REJECTED') NOT NULL DEFAULT 'LOCKED',
+    status ENUM('LOCKED','PENDING','IN_REVIEW','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
     started_at DATETIME NULL,
     reviewed_at DATETIME NULL,
     comments TEXT NULL,
@@ -310,7 +310,7 @@ SQL,
     $stageStatusType = $db->query("SHOW COLUMNS FROM clearance_stages LIKE 'status'")->fetch();
     if (!str_contains((string) $stageStatusType['Type'], "'ESCALATED'")) {
         $db->exec(
-            "ALTER TABLE clearance_stages MODIFY COLUMN status ENUM('LOCKED','PENDING','IN_REVIEW','APPROVED','REJECTED','ESCALATED') NOT NULL DEFAULT 'LOCKED'"
+            "ALTER TABLE clearance_stages MODIFY COLUMN status ENUM('LOCKED','PENDING','IN_REVIEW','APPROVED','REJECTED','ESCALATED') NOT NULL DEFAULT 'PENDING'"
         );
     }
 
@@ -326,6 +326,9 @@ SQL,
 
     require_once __DIR__.'/clearance_documents_migrations.php';
     migrate_clearance_documents($db);
+
+    require_once __DIR__.'/parallel_clearance_migrations.php';
+    migrate_parallel_clearance($db);
 
     foreach([
         ['notifications','idx_notifications_unread','user_id,is_read'],

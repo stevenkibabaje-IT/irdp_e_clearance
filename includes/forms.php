@@ -69,7 +69,7 @@ function student_evidence_form(PDO $pdo, array $stage, array $errors=[]): void {
     ?>
     <div class="student-evidence-form">
         <h3>Upload evidence and submit to the office</h3>
-        <p>Explain how you resolved the rejection and attach your supporting documents. This office will review your submission; the next stage opens after approval.</p>
+        <p>Explain how you resolved the rejection and attach your supporting documents. This office will review your submission. Other offices can continue reviewing independently.</p>
         <form method="post" action="<?= e(url('student/resubmit.php?stage='.$stageId)) ?>" enctype="multipart/form-data">
             <?php csrf_field(); ?>
             <input type="hidden" name="stage_id" value="<?= $stageId ?>">
@@ -91,7 +91,7 @@ function finance_payment_form(array $stage, array $errors = []): void {
     $payment = finance_payment_details($stage);
     $number = (string)($payment['control_number'] ?? '');
     if ($number === '') {
-        echo '<p class="muted">Finance will provide your payment control number after the earlier offices approve.</p>';
+        echo '<p class="muted">Finance will provide your payment control number when it reviews your clearance.</p>';
         return;
     }
     $stageId = (int)$stage['id'];

@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!$isFinance && $mode === 'resubmit') {
             $response = text_input($_POST,'response',4000,true);
             resubmit_stage($pdo,$stageId,(int)current_user()['id'],$response,$files);
-            flash('success','Your response and evidence were submitted to the responsible office. The next stage opens after office approval.');
+            flash('success','Your response and evidence were submitted to the responsible office. Other offices can continue reviewing independently.');
         } else {
             throw new RuntimeException('Invalid response action.');
         }
@@ -45,7 +45,7 @@ $pageTitle=$isFinance ? 'Finance Payment Receipt' : 'Response and Evidence';requ
         </div>
         <?php student_evidence_form($pdo,$stage,$errors); ?>
     <?php else: ?>
-        <p><?= $stage['status']==='APPROVED' ? 'This stage has been approved. Continue tracking the next stage in My Clearance.' : 'Your stage is awaiting office review. The next stage opens after approval.' ?></p>
+        <p><?= $stage['status']==='APPROVED' ? 'This office has approved your clearance. Track the remaining offices in My Clearance.' : 'Your stage is awaiting office review. Other offices can continue reviewing independently.' ?></p>
         <a class="btn primary" href="<?= e(url('student/status.php#stage-'.$stageId)) ?>">Back to My Clearance</a>
     <?php endif; ?>
 </section>

@@ -39,13 +39,13 @@ try {
             $reviewer = find_office_reviewer($pdo, (int)$step['office_id'], $number === 7 ? (int)$record['department_id'] : 0);
             if (!$reviewer) { throw new RuntimeException('Fixture office reviewer missing.'); }
             $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status,actionable_at) VALUES (?,?,?,?,?,?,?)')
-                ->execute([$record['request_id'], $step['id'], $step['office_id'], $reviewer, $reviewer, $number === 1 ? 'PENDING' : 'LOCKED', $number === 1 ? date('Y-m-d H:i:s') : null]);
+                ->execute([$record['request_id'], $step['id'], $step['office_id'], $reviewer, $reviewer, 'PENDING', date('Y-m-d H:i:s')]);
             $record['stages'][$number] = (int)$pdo->lastInsertId();
             ensure_review_cycle($pdo, $record['stages'][$number]);
         }
         $records[] = $record;
     }
-    // A real completed workflow makes certificate/transcript layouts available.
+    // A completed workflow makes the transcript available on the dashboard.
     foreach ($records[0]['stages'] as $number => $stageId) {
         $stage = stage_context($pdo, $stageId);
         if ($number === 11) {

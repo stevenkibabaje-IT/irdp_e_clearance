@@ -42,7 +42,7 @@ require_once __DIR__ . '/../includes/header.php';
             <li>IRDP Student Clearance Report title</li>
             <li>Reporting period and generation date</li>
             <li>Total requests</li>
-            <li>Completed, in-progress, paused and not-started counts</li>
+            <li>Completed, in-progress, student-action-required and not-started counts</li>
             <li>Cancelled request count when applicable</li>
             <li>Approved and rejected actions by office</li>
             <li>Student clearance list and current stage</li>

@@ -48,7 +48,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="stats-grid two-col">
     <div class="stat-card warning"><div class="stat-icon"><?= icon('clock') ?></div><span>In Progress</span><strong><?= $stats['in_progress'] ?></strong></div>
-    <div class="stat-card warning"><div class="stat-icon"><?= icon('pause-circle') ?></div><span>Paused</span><strong><?= $stats['paused'] ?></strong></div>
+    <div class="stat-card warning"><div class="stat-icon"><?= icon('pause-circle') ?></div><span>Student action required</span><strong><?= $stats['paused'] ?></strong></div>
 </div>
 
 <div class="two-col">
@@ -70,11 +70,11 @@ require_once __DIR__ . '/../includes/header.php';
     <section class="panel">
         <h2>Workflow Rule</h2>
         <p>
-            Clearance follows the configured 11-stage order. A rejected stage pauses the entire request;
-            later stages remain locked until the same stage is approved.
+            All 11 offices review independently after the student starts clearance. A rejected stage
+            requires student correction for that office; other offices can continue reviewing.
         </p>
         <div class="alert info">
-            Certificate generation occurs automatically after the final stage is approved and all 11 stages are confirmed approved.
+            The clearance transcript is issued automatically after all 11 offices approve and all liabilities are cleared.
         </div>
     </section>
 </div>

@@ -141,13 +141,9 @@ require_once __DIR__ . '/../includes/header.php';
                     <td><?= e($row['step_number'] . '. ' . $row['title']) ?><br><small><?= e($row['task_office']) ?></small><?php if ((int)$row['resubmissions']>0): ?><br><span class="badge info">Resubmitted: review student evidence</span><?php endif; ?></td>
                     <td><span class="<?= e(badge_class($row['status'])) ?>"><?= e($row['status']) ?></span></td>
                     <td>
-                        <?php if($row['request_status']==='PAUSED' && (int)$row['step_number']!==11): ?>
-                            <span class="badge warning">Waiting for student correction</span>
-                        <?php else: ?>
                         <a class="btn primary small" href="<?= e(url('officer/review.php?stage=' . $row['id'])) ?>">
                             Review
                         </a>
-                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>

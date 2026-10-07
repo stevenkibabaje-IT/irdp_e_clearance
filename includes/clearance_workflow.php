@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/** Assigned office reviews, evidence resubmission and sequential clearance decisions. */
+/** Independent assigned office reviews, evidence resubmission and clearance decisions. */
 function user_record(PDO $pdo, int $id): ?array {
     $s = $pdo->prepare('SELECT u.*, r.name AS role_name FROM users u INNER JOIN roles r ON r.id=u.role_id WHERE u.id=?');
     $s->execute([$id]);
@@ -62,10 +62,10 @@ function resubmit_stage(PDO $pdo, int $stageId, int $studentUser, string $respon
     $pdo->beginTransaction();
     try {
         $stage=stage_context($pdo,$stageId,true);
-        if ((int)$stage['student_user_id']!==$studentUser || $stage['status']!=='REJECTED' || $stage['request_status']!=='PAUSED') {
+        if ((int)$stage['student_user_id']!==$studentUser || $stage['status']!=='REJECTED'
+            || !in_array($stage['request_status'],['IN_PROGRESS','PAUSED'],true)) {
             throw new RuntimeException('Only your rejected stage can be resubmitted.');
         }
-        require_prerequisites($pdo,$stage);
         $isFinance = (int)$stage['step_number'] === 11;
         $payment = finance_payment_details($stage);
         if ($isFinance) {
@@ -96,7 +96,7 @@ function resubmit_stage(PDO $pdo, int $stageId, int $studentUser, string $respon
                 ->execute([json_encode($payment, JSON_THROW_ON_ERROR), 'Payment receipt submitted. Awaiting Finance verification.', $stageId]);
         }
         $pdo->prepare('UPDATE clearance_stages SET status="PENDING",review_cycle=?,resubmissions=resubmissions+1,actionable_at=NOW(),reviewed_at=NULL,assignment_status=CASE WHEN assigned_officer_id IS NULL THEN "UNASSIGNED" ELSE "ASSIGNED" END WHERE id=?')->execute([$cycle,$stageId]);
-        $pdo->prepare('UPDATE clearance_requests SET status="IN_PROGRESS" WHERE id=?')->execute([$stage['clearance_request_id']]);
+        refresh_clearance_request_status($pdo,(int)$stage['clearance_request_id']);
         route_clearance_stage($pdo,(int)$stage['clearance_request_id'],$stageId,$studentUser);
         $stage=stage_context($pdo,$stageId);
         notify_stage($pdo,$stage,$isFinance ? 'Payment receipt submitted' : 'Clearance stage resubmitted',
@@ -114,12 +114,12 @@ function resubmit_stage(PDO $pdo, int $stageId, int $studentUser, string $respon
         throw $e;
     }
 }
-function require_prerequisites(PDO $pdo, array $stage): void {
-    $s=$pdo->prepare('SELECT COUNT(*) FROM clearance_stages cs INNER JOIN workflow_steps ws ON ws.id=cs.workflow_step_id WHERE cs.clearance_request_id=? AND ws.step_number<? AND cs.status<>"APPROVED"');
-    $s->execute([$stage['clearance_request_id'],$stage['step_number']]);
-    if((int)$s->fetchColumn()) {
-        throw new RuntimeException('Earlier stages must be approved first.');
-    }
+// The caller holds the request lock. PAUSED indicates student action, not a review block.
+function refresh_clearance_request_status(PDO $pdo, int $requestId): void {
+    $pdo->prepare('UPDATE clearance_requests cr SET status=CASE WHEN EXISTS (
+        SELECT 1 FROM clearance_stages cs WHERE cs.clearance_request_id=cr.id AND cs.status="REJECTED"
+        ) THEN "PAUSED" ELSE "IN_PROGRESS" END WHERE cr.id=? AND cr.status IN ("IN_PROGRESS","PAUSED")')
+        ->execute([$requestId]);
 }
 function liabilities_clear(array $details, int $step): bool {
     if ($step === 11) { return finance_details_clear($details); }
@@ -250,33 +250,15 @@ function process_stage_decision(PDO $pdo,int $stageId,int $reviewer,array $input
         $pdo->prepare('UPDATE clearance_stages SET status=?,comments=?,corrective_instructions=?,details_json=?,reviewed_at=NOW(),actionable_at=NULL WHERE id=?')->execute([$action,$comments,$instructions,json_encode($details,JSON_THROW_ON_ERROR),$stageId]);
         $pdo->prepare('INSERT INTO stage_actions(stage_id,officer_id,action,comments,corrective_instructions,details_json,review_cycle) VALUES (?,?,?,?,?,?,?)')->execute([$stageId,$reviewer,$action,$comments,$instructions,json_encode($details,JSON_THROW_ON_ERROR),$cycle]);
         $pdo->prepare('UPDATE review_cycles SET closed_at=NOW() WHERE stage_id=? AND cycle_number=?')->execute([$stageId,$cycle]);
+        refresh_clearance_request_status($pdo,(int)$stage['clearance_request_id']);
         if($action==='REJECTED') {
-            $pdo->prepare('UPDATE clearance_requests SET status="PAUSED" WHERE id=?')->execute([$stage['clearance_request_id']]);
             notify_stage($pdo,$stage,$isFinance ? 'Finance payment required' : 'Clearance stage rejected',
                 $isFinance ? $instructions : 'Stage '.$stage['step_number'].': '.$comments.' Corrective instructions: '.$instructions.'. Submit a response and evidence to reopen this stage.');
-        } else {
-            $s=$pdo->prepare('SELECT cs.id FROM clearance_stages cs INNER JOIN workflow_steps ws ON ws.id=cs.workflow_step_id WHERE cs.clearance_request_id=? AND ws.step_number=?');
-            $s->execute([$stage['clearance_request_id'],(int)$stage['step_number']+1]);
-            $next=$s->fetchColumn();
-            if($next) {
-                $s=$pdo->prepare('UPDATE clearance_stages SET status="PENDING",started_at=COALESCE(started_at,NOW()),actionable_at=NOW() WHERE id=? AND status="LOCKED"');
-                $s->execute([$next]);
-                if($s->rowCount()!==1) {
-                    throw new RuntimeException('The next stage is not locked. Contact the administrator.');
-                }
-                ensure_review_cycle($pdo,(int)$next);
-                route_clearance_stage($pdo,(int)$stage['clearance_request_id'],(int)$next,$reviewer);
-                $nextStage=stage_context($pdo,(int)$next);
-                notify_stage($pdo,$nextStage,'Clearance stage ready','Stage '.$nextStage['step_number'].' is now actionable for review.');
-            } else {
-                if((int)$stage['step_number']!==11 || !certificate_release_allowed($pdo,(int)$stage['clearance_request_id'])) {
-                    throw new RuntimeException('All 11 stages and certificate release checks must pass.');
-                }
-                $pdo->prepare('UPDATE clearance_requests SET status="COMPLETED",completed_at=NOW() WHERE id=?')->execute([$stage['clearance_request_id']]);
-                issue_certificate($pdo,(int)$stage['clearance_request_id']);
-                ensure_transcript($pdo,(int)$stage['student_id'], $reviewer, (int)$stage['clearance_request_id']);
-                notify_stage($pdo,$stage,'Clearance completed','All 11 stages are approved. Your clearance transcript is available on your dashboard.');
-            }
+        } elseif (certificate_release_allowed($pdo,(int)$stage['clearance_request_id'])) {
+            $pdo->prepare('UPDATE clearance_requests SET status="COMPLETED",completed_at=NOW() WHERE id=?')->execute([$stage['clearance_request_id']]);
+            issue_certificate($pdo,(int)$stage['clearance_request_id']);
+            ensure_transcript($pdo,(int)$stage['student_id'], $reviewer, (int)$stage['clearance_request_id']);
+            notify_stage($pdo,$stage,'Clearance completed','All 11 stages are approved. Your clearance transcript is available on your dashboard.');
         }
         audit($pdo,'STAGE_'.$action,$reviewer,(int)$stage['clearance_request_id'],'Stage '.$stageId.' review cycle '.$cycle.($acceptCorrection?'; officer verified student correction and confirmed office requirements resolved.':''));
         $pdo->commit();

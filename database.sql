@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS clearance_stages (
  workflow_step_id INT NOT NULL,
  office_id INT NOT NULL,
  assigned_officer_id INT NULL,
- status ENUM('LOCKED','PENDING','IN_REVIEW','APPROVED','REJECTED') NOT NULL DEFAULT 'LOCKED',
+ status ENUM('LOCKED','PENDING','IN_REVIEW','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
  started_at DATETIME NULL,
  reviewed_at DATETIME NULL,
  comments TEXT NULL,
