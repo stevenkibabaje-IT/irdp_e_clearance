@@ -74,7 +74,9 @@ After login, Students, Officers, Supervisors and Administrators can use **Log ou
 
 ## Demo Student Accounts
 
-These accounts are fictional demonstration accounts created only for development, testing, and project presentation. They must not be used as real student accounts in production. All five accounts are active.
+Mwongozo rahisi wa kutumia akaunti hizi: [README ya demo accounts](README_DEMO_ACCOUNTS.md). Ina login za wanafunzi, officers na admin, pamoja na hatua za kujaribu clearance.
+
+These accounts are fictional demonstration accounts created only for development, testing, and project presentation. They must not be used as real student accounts in production. There are fifteen active demo students: the original five and ten additional accounts. New accounts are created automatically on the next application startup; existing passwords and clearance history are preserved.
 
 | Student Name | Registration Number | Initial Password | Programme |
 |---|---|---|---|
@@ -83,6 +85,16 @@ These accounts are fictional demonstration accounts created only for development
 | Baraka Musa Mushi | IRDP/BTCCD/MA25/0003 | MUSHI0003 | BTCCD |
 | Rehema John Mallya | IRDP/ODICT/MA25/0004 | MALLYA0004 | ODICT |
 | Daniel Peter Kweka | IRDP/BTCRP/MA25/0005 | KWEKA0005 | BTCRP |
+| Amina Hassan Said | IRDP/BTCCD/MA25/0006 | SAID0006 | BTCCD |
+| Joseph Paul Mrema | IRDP/ODICT/MA25/0007 | MREMA0007 | ODICT |
+| Fatuma Ali Mollel | IRDP/BTCRP/MA25/0008 | MOLLEL0008 | BTCRP |
+| Musa Ibrahim Kimaro | IRDP/BTCCD/MA25/0009 | KIMARO0009 | BTCCD |
+| Grace Esther Massawe | IRDP/ODICT/MA25/0010 | MASSAWE0010 | ODICT |
+| Peter James Mgimwa | IRDP/BTCRP/MA25/0011 | MGIMWA0011 | BTCRP |
+| Halima Omar Nyerere | IRDP/BTCCD/MA25/0012 | NYERERE0012 | BTCCD |
+| John David Mkude | IRDP/ODICT/MA25/0013 | MKUDE0013 | ODICT |
+| Zawadi Rose Mwakalinga | IRDP/BTCRP/MA25/0014 | MWAKALINGA0014 | BTCRP |
+| Emmanuel Daniel Msuya | IRDP/BTCCD/MA25/0015 | MSUYA0015 | BTCCD |
 
 Student login uses the Registration Number as the username. The initial password rule is **UPPERCASE LAST NAME + LAST 4 DIGITS OF REGISTRATION NUMBER**.
 
@@ -96,7 +108,7 @@ The plain-text demo passwords appear in README.md only because these are fiction
 
 ## Future Development — Student Bulk Import
 
-The current presentation workflow uses the five demo student accounts listed above. A future production onboarding flow can allow authorized Admin users to import official Excel/CSV records containing Registration Number, First Name, Middle Name, Last Name, and Programme.
+The current presentation workflow uses the fifteen demo student accounts listed above. A future production onboarding flow can allow authorized Admin users to import official Excel/CSV records containing Registration Number, First Name, Middle Name, Last Name, and Programme.
 
 That production flow should validate registration numbers, reject duplicates, create the student accounts, generate each initial password from the uppercase last name plus the final four registration digits, and securely hash every password before storage. The existing prototype import utilities remain in the codebase for extension and testing, but bulk import is intentionally excluded from the current demo navigation.
 

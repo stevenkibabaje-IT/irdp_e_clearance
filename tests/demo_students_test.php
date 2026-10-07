@@ -31,10 +31,42 @@ try{
     $server=new PDO($dsn,getenv('IRDP_TEST_USER')?:'root',getenv('IRDP_TEST_PASSWORD')?:'',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);
     $server->exec('CREATE DATABASE '.$database.' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');$created=true;$server->exec('USE '.$database);$pdo=ensure_database_ready($server);
     $definitions=require __DIR__.'/../config/demo_students.php';
-    demo_check(count($definitions)===5,'Demo definition count is not five.');
+    demo_check(count($definitions)===15,'Demo definition count is not fifteen.');
     $studentCount=(int)$pdo->query('SELECT COUNT(*) FROM users u INNER JOIN roles r ON r.id=u.role_id WHERE r.name="STUDENT"')->fetchColumn();
-    demo_check($studentCount===5,'A fresh installation did not contain exactly five demo students.');
+    demo_check($studentCount===15,'A fresh installation did not contain exactly fifteen demo students.');
+    // Recreate an installation containing the original five, then use the normal upgrade path.
+    $originalNames=implode(',',array_map(fn($row)=>$pdo->quote($row['registration_number']),array_slice($definitions,0,5)));
+    $additionalNames=implode(',',array_map(fn($row)=>$pdo->quote($row['registration_number']),array_slice($definitions,5)));
+    $originalUsers=$pdo->query('SELECT * FROM users WHERE username IN ('.$originalNames.') ORDER BY id')->fetchAll();
+    $originalUserIds=implode(',',array_column($originalUsers,'id'));
+    $originalStudents=$pdo->query('SELECT * FROM students WHERE user_id IN ('.$originalUserIds.') ORDER BY id')->fetchAll();
+    $pdo->exec("INSERT IGNORE INTO academic_cycles(label) VALUES ('2024/2025')");
+    $pdo->prepare('INSERT INTO clearance_requests(student_id,academic_year,status,started_at) VALUES (?,"2024/2025","IN_PROGRESS",NOW())')->execute([$originalStudents[0]['id']]);
+    $historicalRequest=(int)$pdo->lastInsertId();
+    $legacyStep=$pdo->query('SELECT * FROM workflow_steps WHERE step_number=1')->fetch();
+    $legacyReviewer=find_office_reviewer($pdo,(int)$legacyStep['office_id']);
+    $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,status,details_json,reviewed_at) VALUES (?,?,?,?,"APPROVED",\'{"amount":"0"}\',NOW())')->execute([$historicalRequest,$legacyStep['id'],$legacyStep['office_id'],$legacyReviewer]);
+    $historicalStage=(int)$pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO stage_actions(stage_id,officer_id,action,comments) VALUES (?, ?, "APPROVED", "Existing demo office approval")')->execute([$historicalStage,$legacyReviewer]);
+    $historyBefore=[];
+    foreach(['clearance_requests','clearance_stages','stage_actions'] as $table){$historyBefore[$table]=$pdo->query('SELECT * FROM '.$table.' ORDER BY id')->fetchAll();}
+    $additionalIds=implode(',',$pdo->query('SELECT id FROM users WHERE username IN ('.$additionalNames.')')->fetchAll(PDO::FETCH_COLUMN));
+    $pdo->exec('DELETE FROM students WHERE user_id IN ('.$additionalIds.')');
+    $pdo->exec('DELETE FROM users WHERE id IN ('.$additionalIds.')');
+    $pdo->exec("INSERT IGNORE INTO schema_migrations(version) VALUES ('2026_runtime_v9_parallel_clearance')");
+    $pdo->prepare('DELETE FROM schema_migrations WHERE version=?')->execute([APPLICATION_SCHEMA_VERSION]);
+    ensure_database_ready($pdo,false);
+    demo_check($pdo->query('SELECT * FROM users WHERE username IN ('.$originalNames.') ORDER BY id')->fetchAll()===$originalUsers,'Upgrade reset original accounts or passwords.');
+    demo_check($pdo->query('SELECT * FROM students WHERE user_id IN ('.$originalUserIds.') ORDER BY id')->fetchAll()===$originalStudents,'Upgrade changed original student records.');
+    foreach($historyBefore as $table=>$rows){demo_check($pdo->query('SELECT * FROM '.$table.' ORDER BY id')->fetchAll()===$rows,'Demo upgrade changed existing '.$table.'.');}
+    $seededUsers=$pdo->query('SELECT * FROM users ORDER BY id')->fetchAll();
+    $seededStudents=$pdo->query('SELECT * FROM students ORDER BY id')->fetchAll();
+    seed_demo_accounts($pdo);
+    demo_check($pdo->query('SELECT * FROM users ORDER BY id')->fetchAll()===$seededUsers&&$pdo->query('SELECT * FROM students ORDER BY id')->fetchAll()===$seededStudents,'Repeated seeding duplicated accounts or changed passwords.');
+    demo_check(count($seededStudents)===15&&database_schema_ready($pdo),'Upgrade did not add exactly ten students or record runtime readiness.');
+    echo "PASS: upgrade adds ten students to the original five, preserves passwords/clearance history and repeated seeding\n";
     $readme=file_get_contents(__DIR__.'/../README.md');
+    $demoGuide=file_get_contents(__DIR__.'/../README_DEMO_ACCOUNTS.md');
     $records=[];
     foreach($definitions as $definition){
         $registration=$definition['registration_number'];$password=demo_student_initial_password($definition);
@@ -47,10 +79,11 @@ try{
         demo_check($record['password_hash']!==$password&&password_verify($password,$record['password_hash']),'Demo password is plaintext or cannot be verified for '.$registration.'.');
         demo_check((password_get_info($record['password_hash'])['algoName']??'')==='argon2id','Demo password is not Argon2id for '.$registration.'.');
         demo_check(str_contains($readme,'| '.$definition['full_name'].' | '.$registration.' | '.$password.' | '.$definition['programme'].' |'),'README credential row differs for '.$registration.'.');
+        demo_check(str_contains($demoGuide,'| '.$definition['full_name'].' | '.$registration.' | '.$password.' | '.$definition['programme'].' |'),'Demo guide credential row differs for '.$registration.'.');
         $records[]=$record+['password'=>$password];
     }
-    demo_check(count(array_unique(array_column($records,'username')))===5&&count(array_unique(array_column($records,'student_id')))===5,'Demo registration numbers are not unique.');
-    echo "PASS: five unique active demo accounts, password rule, Argon2id hashes and README credentials\n";
+    demo_check(count(array_unique(array_column($records,'username')))===15&&count(array_unique(array_column($records,'student_id')))===15,'Demo registration numbers are not unique.');
+    echo "PASS: fifteen unique active demo accounts, password rule, Argon2id hashes and both README credential tables\n";
 
     $cycle='2025/2026';$pdo->prepare('UPDATE clearance_period SET cycle_id=(SELECT id FROM academic_cycles WHERE label=?),mode="MANUAL_OPEN" WHERE id=1')->execute([$cycle]);
     $insertRequest=$pdo->prepare('INSERT INTO clearance_requests(student_id,academic_year,status,started_at) VALUES (?, ?, "IN_PROGRESS", NOW())');
@@ -90,7 +123,7 @@ try{
         change_password($pdo,(int)$record['id'],$temporary,$record['password'],$record['password']);
         echo 'PASS: '.$record['username']." login, dashboard, optional password, privacy and duplicate-cycle checks\n";
     }
-    echo "PASS: all five demo students verified independently\n";
+    echo "PASS: all fifteen demo students verified independently\n";
 }catch(Throwable $error){fwrite(STDERR,'FAIL: '.$error->getMessage().PHP_EOL);$exit=1;}
 finally{
     if($pdo&&$pdo->inTransaction()){$pdo->rollBack();}

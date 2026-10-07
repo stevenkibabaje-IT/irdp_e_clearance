@@ -6,7 +6,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 
 // Bump when schema or initial reference-data requirements change.
-const APPLICATION_SCHEMA_VERSION = '2026_runtime_v9_parallel_clearance';
+const APPLICATION_SCHEMA_VERSION = '2026_runtime_v10_demo_students_15';
 
 function database_schema_ready(PDO $db): bool
 {
@@ -520,7 +520,7 @@ function seed_demo_accounts(PDO $db): void
     }
 
     $demoStudents=require __DIR__.'/../config/demo_students.php';
-    if(count($demoStudents)!==5){throw new RuntimeException('The demonstration must define exactly five seeded students.');}
+    if(count($demoStudents)!==15){throw new RuntimeException('The demonstration must define exactly fifteen seeded students.');}
     $findStudentUser=$db->prepare('SELECT id FROM users WHERE username=? LIMIT 1');
     $insertStudentUser=$db->prepare('INSERT INTO users(username,password_hash,full_name,role_id,department_id,active,force_password_change) VALUES (?,?,?,?,?,1,0)');
     $updateLegacyUser=$db->prepare('UPDATE users SET username=?,password_hash=?,full_name=?,role_id=?,department_id=?,active=1,force_password_change=0,auth_version=auth_version+1 WHERE id=?');
