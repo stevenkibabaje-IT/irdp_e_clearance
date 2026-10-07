@@ -1,0 +1,35 @@
+# Private runtime data, uploads, database backups and imports.
+/storage/*
+!/storage/.htaccess
+*.log
+*.cookies
+*.sql
+!/database.sql
+
+# Local credentials and machine configuration.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+/.aws/
+/.codex/
+/.agents/
+
+# Local editor/OS files and generated dependency folders.
+/.vscode/
+/.idea/
+/vendor/
+/node_modules/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Test sessions, captured screenshots and temporary tooling references.
+/tests/.*-sessions/
+/tests/.*-screenshots/
+/tests/.github-tools-path
+/tests/fictional-*
+/tests/finance-test-receipt.pdf
+/tests/finance-invalid-receipt.pdf
+/tests/invalid-upload.*

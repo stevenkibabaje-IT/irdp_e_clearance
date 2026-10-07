@@ -1,0 +1,21 @@
+Options -Indexes
+DirectoryIndex index.php
+
+# Keep local Git history and configuration out of the web root's public responses.
+RedirectMatch 404 "(?i)/\.git(?:/|$)"
+
+# Allow the documented 5 MB uploads, including multipart form overhead.
+<IfModule php_module>
+    php_value upload_max_filesize 6M
+    php_value post_max_size 32M
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json image/svg+xml
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|jpg|jpeg|png|woff2)$">
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+</IfModule>
