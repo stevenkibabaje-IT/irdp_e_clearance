@@ -40,23 +40,24 @@ if (current_user()) {
             <div class="eyebrow brand-eyebrow">Institute of Rural Development Planning</div>
             <h1>Student Clearance, <span>made simple.</span></h1>
             <p>
-                Follow the official clearance sequence online, track every decision,
-                resolve rejected stages and access your certificate after final approval.
+                Start your clearance, track progress and access your certificate online.
             </p>
             <div class="landing-hero-actions">
                 <a class="btn primary" href="<?= e(url('auth/login.php')) ?>">Start / Login</a>
-                <a class="btn secondary" href="#help">Need help? / Unahitaji msaada?</a>
+                <a class="btn secondary" href="#help">Help / Msaada</a>
             </div>
         </div>
     </section>
 
-    <section class="feature-grid">
-        <div><span class="feature-icon"><?= icon('shield') ?></span><h3>Secure</h3><p>Role-based access, sessions and password hashing.</p></div>
-        <div><span class="feature-icon"><?= icon('workflow') ?></span><h3>Trackable</h3><p>Students see all 11 clearance stages and progress.</p></div>
-        <div><span class="feature-icon"><?= icon('eye') ?></span><h3>Transparent</h3><p>Approvals, rejections and comments are recorded.</p></div>
-        <div><span class="feature-icon"><?= icon('certificate') ?></span><h3>Certificate</h3><p>Certificate is issued when every stage is approved.</p></div>
-    </section>
-    <section class="landing-help" id="help" aria-labelledby="help-heading" lang="sw">
+    <ul class="landing-highlights" aria-label="System features">
+        <li><?= icon('shield') ?> Secure</li>
+        <li><?= icon('workflow') ?> 11 clearance stages</li>
+        <li><?= icon('eye') ?> Track progress</li>
+        <li><?= icon('certificate') ?> Online certificate</li>
+    </ul>
+    <details class="landing-help" id="help" lang="sw">
+        <summary>Help / Msaada <span>Bonyeza kupata maelekezo</span></summary>
+        <div class="landing-help-content">
         <div class="landing-section-heading">
             <div class="eyebrow brand-eyebrow">Help / Msaada</div>
             <h2 id="help-heading">Tuko hapa kukusaidia</h2>
@@ -90,36 +91,25 @@ if (current_user()) {
                 <a class="landing-recovery-link" href="<?= e(url('auth/forgot.php')) ?>">Omba kurejesha nenosiri</a>
             </aside>
         </div>
-    </section>
+        </div>
+    </details>
     </main>
     <footer class="landing-footer" aria-label="Site footer">
-        <div class="landing-footer-grid">
+        <div class="landing-footer-row">
             <div class="landing-footer-brand">
-                <img class="irdp-emblem" src="<?= e(url('assets/img/irdp-logo-web.png')) ?>" width="68" height="68" alt="IRDP logo" loading="lazy">
-                <div>
-                    <strong>IRDP Student Clearance System</strong>
-                    <p>Institute of Rural Development Planning</p>
-                    <span>Kupanga ni Kuchagua</span>
+                <strong>IRDP Student Clearance System</strong>
+                <span>&copy; <?= date('Y') ?> IRDP &middot; Kupanga ni Kuchagua</span>
+            </div>
+            <div class="landing-footer-contact" lang="sw">
+                <span>Support / Msaada</span>
+                <div class="landing-contact-numbers">
+                    <a href="tel:+255659913570">0659913570</a>
+                    <a href="tel:+255662632565">0662632565</a>
                 </div>
             </div>
-            <nav class="landing-footer-links" aria-label="Quick links">
-                <h2>Quick links / Viungo</h2>
-                <a href="<?= e(url('auth/login.php')) ?>">Login / Ingia</a>
-                <a href="#help">Help / Msaada</a>
-                <a href="<?= e(url('auth/forgot.php')) ?>">Forgot Password / Nenosiri</a>
-            </nav>
-            <div class="landing-footer-contact" lang="sw">
-                <h2>Wasiliana nasi</h2>
-                <p>Kwa msaada wa kutumia mfumo:</p>
-                <a href="tel:+255659913570">0659913570</a>
-                <a href="tel:+255662632565">0662632565</a>
-                <span>Bonyeza namba kupiga simu.</span>
-            </div>
-        </div>
-        <div class="landing-footer-bottom">
-            <span>&copy; <?= date('Y') ?> IRDP Student Clearance System</span>
-            <a href="#main-content">Back to top / Rudi juu</a>
+            <a href="<?= e(url('auth/forgot.php')) ?>">Forgot Password</a>
         </div>
     </footer>
+    <script src="<?= e(url('assets/js/landing.js?v=' . filemtime(__DIR__.'/assets/js/landing.js'))) ?>" defer></script>
 </body>
 </html>
