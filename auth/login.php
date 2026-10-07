@@ -166,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
 
             <p class="muted" style="margin:16px 0 0; font-size:0.6875rem; text-align:center;">
-                IRDP Student Clearance System · Local XAMPP version
+                IRDP Student Clearance System
             </p>
         </section>
     </main>
