@@ -108,7 +108,7 @@ async function checkLayout(route, width, scale) {
     if (scale === 1 && width === 320 && route.includes('stage='+fixture.finance_stage)) {
         await screenshot(route.startsWith('/officer/') ? 'finance-review-mobile' : 'finance-receipt-mobile');
     }
-    if (scale === 1 && [320, 768, 1440].includes(width) && /dashboard|certificate\.php/.test(route)) {
+    if (scale === 1 && [320, 768, 1440].includes(width) && /dashboard|status\.php/.test(route)) {
         await screenshot(route.split('/')[1]+'-'+width);
     }
 }
@@ -186,7 +186,7 @@ async function navigationChecks() {
             {account: fixture.officer, routes: ['/officer/dashboard.php', '/officer/review.php?stage='+fixture.review_stage]},
             {account: fixture.finance_student, routes: ['/student/dashboard.php','/student/status.php','/student/resubmit.php?stage='+fixture.finance_stage]},
             {account: fixture.finance_officer, routes: ['/officer/dashboard.php','/officer/review.php?stage='+fixture.finance_stage]},
-            {account: fixture.completed, routes: ['/student/dashboard.php', '/certificates/certificate.php?id='+fixture.certificate_request]},
+            {account: fixture.completed, routes: ['/student/dashboard.php', '/student/status.php']},
         ];
         for (const group of groups) {
             if (group.account) await login(group.account);
@@ -197,13 +197,7 @@ async function navigationChecks() {
             console.log('PASS: '+(group.account?.username || 'Public')+' responsive layouts');
             if (group.account === fixture.admin) await navigationChecks();
         }
-        await navigate('/certificates/certificate.php?id='+fixture.certificate_request);
-        await viewport(320);
-        await send('Emulation.setEmulatedMedia', {media: 'print'});
-        const print = await evaluate('({width:document.querySelector(".certificate").getBoundingClientRect().width,height:document.querySelector(".certificate").getBoundingClientRect().height,toolbar:getComputedStyle(document.querySelector(".toolbar")).display,transform:getComputedStyle(document.querySelector(".certificate")).transform})');
-        assert.deepEqual(print, {width:1120, height:790, toolbar:'none', transform:'none'}, 'Phone viewport must preserve certificate print dimensions.');
-        await send('Emulation.setEmulatedMedia', {media: ''});
-        console.log('PASS: '+checks+' browser layouts from 320–1440px, 100%/200% text, '+tableChecks+' scrollable tables and certificate print layout');
+        console.log('PASS: '+checks+' browser layouts from 320–1440px, 100%/200% text, '+tableChecks+' scrollable tables');
     } catch (error) {
         console.error('FAIL: '+error.stack);
         try {if (ws?.readyState === WebSocket.OPEN) await screenshot('failure');} catch (_) {}

@@ -30,10 +30,6 @@ $stages = get_clearance_stages($pdo, (int) $request['id']);
 $approved = count(array_filter($stages, static fn (array $stage): bool => $stage['status'] === 'APPROVED'));
 $progress = (int) round(($approved / 11) * 100);
 
-$certificateStmt = $pdo->prepare('SELECT * FROM certificates WHERE clearance_request_id = ? LIMIT 1');
-$certificateStmt->execute([(int) $request['id']]);
-$certificate = $certificateStmt->fetch() ?: null;
-
 $pageTitle = 'My Clearance';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -46,9 +42,6 @@ require_once __DIR__ . '/../includes/header.php';
         </p>
     </div>
 
-    <?php if ($certificate): ?>
-        <a class="btn gold" href="<?= e(url('certificates/certificate.php?id=' . $request['id'])) ?>">View Certificate</a>
-    <?php endif; ?>
 </div>
 
 <div class="panel">
@@ -64,9 +57,9 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="alert danger" style="margin-top:14px;">
             An office requires action. Find the stage below and follow its instructions. For Finance, pay using the displayed control number and upload your payment receipt.
         </div>
-    <?php elseif ($certificate): ?>
+    <?php elseif ($request['status'] === 'COMPLETED'): ?>
         <div class="alert success" style="margin-top:14px;">
-            All 11 stages are approved. Your certificate is available.
+            All 11 stages are approved. Your clearance is complete.
         </div>
     <?php endif; ?>
 

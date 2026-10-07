@@ -81,7 +81,7 @@ try{
         [$code,$profile]=demo_http('/student/profile.php',[],$cookie);demo_check($code===200&&str_contains($profile,$record['full_name'])&&str_contains($profile,'auth/change_password.php'),'Own profile or optional password link missing for '.$record['username'].'.');
         $other=$records[($index+1)%count($records)];
         [$code]=demo_http('/files/profile.php?student='.$other['student_id'],[],$cookie);demo_check($code===403,'Student accessed another demo profile: '.$record['username'].'.');
-        [$code]=demo_http('/certificates/certificate.php?id='.$other['request_id'],[],$cookie);demo_check($code===403,'Student accessed another demo clearance: '.$record['username'].'.');
+        [$code,$removedCertificate]=demo_http('/certificates/certificate.php?id='.$other['request_id'],[],$cookie);demo_check($code===302&&!str_contains($removedCertificate,'STUDENT CLEARANCE CERTIFICATE'),'Removed certificate view still exposes a demo clearance: '.$record['username'].'.');
         [$code,$notifications]=demo_http('/student/notifications.php',[],$cookie);demo_check($code===200&&str_contains($notifications,'Only '.$record['username'])&&!str_contains($notifications,'Only '.$other['username']),'Student notification privacy failed for '.$record['username'].'.');
         demo_check(!str_contains($dashboard,'student/results.php')&&!str_contains($dashboard,'Academic Results'),'Student dashboard still exposes Academic Results.');
         [$code]=demo_http('/student/results.php',[],$cookie);demo_check($code===302,'Removed results page did not return the student to their dashboard.');

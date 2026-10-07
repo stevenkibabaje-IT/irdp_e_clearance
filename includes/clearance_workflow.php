@@ -273,9 +273,9 @@ function process_stage_decision(PDO $pdo,int $stageId,int $reviewer,array $input
                     throw new RuntimeException('All 11 stages and certificate release checks must pass.');
                 }
                 $pdo->prepare('UPDATE clearance_requests SET status="COMPLETED",completed_at=NOW() WHERE id=?')->execute([$stage['clearance_request_id']]);
-                $certificate=issue_certificate($pdo,(int)$stage['clearance_request_id']);
+                issue_certificate($pdo,(int)$stage['clearance_request_id']);
                 ensure_transcript($pdo,(int)$stage['student_id'], $reviewer, (int)$stage['clearance_request_id']);
-                notify_stage($pdo,$stage,'Clearance completed','Certificate '.$certificate['certificate_number'].' is available.');
+                notify_stage($pdo,$stage,'Clearance completed','All 11 stages are approved. Your clearance transcript is available on your dashboard.');
             }
         }
         audit($pdo,'STAGE_'.$action,$reviewer,(int)$stage['clearance_request_id'],'Stage '.$stageId.' review cycle '.$cycle.($acceptCorrection?'; officer verified student correction and confirmed office requirements resolved.':''));

@@ -15,12 +15,6 @@ $completed = count(array_filter($stages, static fn (array $stage): bool => $stag
 $total = max(11, count($stages));
 $progress = (int) round(($completed / $total) * 100);
 
-$certificate = null;
-if ($request && $request['status'] === 'COMPLETED') {
-    $stmt = $pdo->prepare('SELECT * FROM certificates WHERE clearance_request_id = ? LIMIT 1');
-    $stmt->execute([(int) $request['id']]);
-    $certificate = $stmt->fetch() ?: null;
-}
 $transcript=($request&&$request['status']==='COMPLETED')?transcript_for_student($pdo,(int)$u['student_id'],(int)$request['id']):null;
 $transcript=($transcript&&$transcript['status']==='VALID')?$transcript:null;
 
@@ -42,8 +36,6 @@ require_once __DIR__ . '/../includes/header.php';
         <a class="btn primary" href="<?= e(url('student/start.php')) ?>">Start Clearance</a>
     <?php elseif (!$request): ?>
         <span class="badge muted">CLEARANCE CLOSED</span>
-    <?php elseif ($certificate): ?>
-        <a class="btn gold" href="<?= e(url('certificates/certificate.php?id=' . $request['id'])) ?>"><?= icon('certificate') ?> View Certificate</a>
     <?php else: ?>
         <a class="btn primary" href="<?= e(url('student/status.php')) ?>"><?= $request['status']==='COMPLETED'?'View Clearance':'Continue Clearance' ?></a>
     <?php endif; ?>
@@ -147,27 +139,8 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="quick-grid">
                 <a class="quick-card" href="<?= e(url('student/status.php')) ?>"><?= icon('clipboard-check') ?><strong>My Clearance</strong><br><small>Track all stages</small></a>
                 <a class="quick-card" href="<?= e(url('student/notifications.php')) ?>"><?= icon('bell') ?><strong>Notifications</strong><br><small>View decisions</small></a>
-                <?php if ($certificate): ?>
-                    <a class="quick-card" href="<?= e(url('certificates/certificate.php?id=' . $request['id'])) ?>"><?= icon('certificate') ?><strong>Certificate</strong><br><small>View and print</small></a>
-                <?php else: ?>
-                    <div class="quick-card"><?= icon('certificate') ?><strong>Certificate</strong><br><small>Available after all 11 approvals</small></div>
-                <?php endif; ?>
                 <a class="quick-card" href="<?= e(url('student/notifications.php')) ?>"><?= icon('info') ?><strong>Updates</strong><br><small>Recent activity</small></a>
             </div>
-        </div>
-
-        <div class="panel">
-            <h2>Certificate</h2>
-            <?php if ($certificate): ?>
-                <div class="alert success">
-                    Your clearance is complete and your certificate is ready.
-                </div>
-                <a class="btn gold full" href="<?= e(url('certificates/certificate.php?id=' . $request['id'])) ?>">View Certificate</a>
-            <?php else: ?>
-                <p class="muted">
-                    The certificate will be generated automatically after all 11 clearance stages are approved.
-                </p>
-            <?php endif; ?>
         </div>
     </section>
 </div>

@@ -70,6 +70,8 @@ Run tests/validation_test.php, tests/password_accessibility_test.php and tests/s
 
 ## Clearance period and clearance transcripts
 
+View Certificate has been removed from the student Dashboard and My Clearance. The former certificates/certificate.php URL redirects authenticated students and administrators to their dashboard without rendering or issuing a certificate. Landing-page guidance and new completion notifications point to the Clearance Transcript. Historical certificate records, automatic issuance, PDF download authorization and public verification are retained for compatibility.
+
 The Admin Clearance Period Management page controls a single active period. It supports manual OPEN/CLOSE and scheduled opening/closing timestamps tied to an academic cycle. Student login remains available while the period is closed, while student/start.php and student/resubmit.php reject POST operations server-side with the official closed-period message. Existing officer review and administrative operations remain available.
 
 Academic Results has been removed. The former Admin and Student URLs redirect to the corresponding dashboard and do not display or edit results. The academic results provider and module/grading/results database setup have been removed. Existing legacy tables are left untouched for data preservation and are never accessed by the application; fresh installations do not create them.

@@ -216,7 +216,7 @@ try{
                 check($code===302&&stage_context($pdo,$id)['status']==='PENDING'&&stage_context($pdo,$id)['request_status']==='IN_PROGRESS','Receipt submission failed or skipped review.');
                 $payment=finance_payment_details(stage_context($pdo,$id));
                 check($payment['payment_status']==='AWAITING_REVIEW'&&$payment['receipt_control_number']===$issued,'Receipt not bound to control number.');
-                [$code]=http_call('/certificates/certificate.php?id='.$fullRequest,[],$financeStudentCookie);check($code===409,'Receipt upload released certificate.');
+                check(!certificate_release_allowed($pdo,$fullRequest),'Receipt upload released certificate.');
                 [$code,$pendingPayment]=http_call('/student/dashboard.php',[],$financeStudentCookie);
                 check($code===200&&str_contains($pendingPayment,'Awaiting Finance review')&&!str_contains($pendingPayment,'name="evidence[]"'),'Pending payment status missing.');
                 [$code,$financeReview]=http_call('/officer/review.php?stage='.$id,[],$financeCookie);
@@ -285,6 +285,13 @@ try{
     $pdo->exec('UPDATE clearance_period SET cycle_id=(SELECT id FROM academic_cycles WHERE label="2027/2028") WHERE id=1');
     [$code,$completedDashboard]=http_call('/student/dashboard.php',[],$cookie);
     check($code===200&&str_contains($completedDashboard,'transcripts/download.php')&&!str_contains($completedDashboard,'Academic Results'),'Completed student lost transcript access or still sees Academic Results.');
+    check(!str_contains($completedDashboard,'Certificate')&&!str_contains($completedDashboard,'certificates/certificate.php'),'Completed dashboard still exposes View Certificate.');
+    [$code,$completedStatus]=http_call('/student/status.php',[],$cookie);
+    check($code===200&&str_contains($completedStatus,'Your clearance is complete.')&&!str_contains($completedStatus,'Certificate')&&!str_contains($completedStatus,'certificates/certificate.php'),'Completed status lost its completion message or still exposes View Certificate.');
+    foreach(['','?id='.$fullRequest,'?id=bad'] as $query){
+        [$code,$removedCertificate]=http_call('/certificates/certificate.php'.$query,[],$cookie);
+        check($code===302&&!str_contains($removedCertificate,'STUDENT CLEARANCE CERTIFICATE'),'Removed certificate view still renders a certificate.');
+    }
     [$code,$transcriptPdf]=http_call('/transcripts/download.php',[],$cookie);
     check($code===200&&str_starts_with($transcriptPdf,'%PDF-')&&str_contains($transcriptPdf,'CLEARANCE TRANSCRIPT')&&str_contains($transcriptPdf,'OFFICE APPROVALS'),'Clearance transcript PDF is missing its title/approval table.');
     foreach(['GPA','Marks','Grade','Credits','ACADEMIC RESULTS','FICTIONAL MARKS'] as $removedLabel){check(!str_contains($transcriptPdf,$removedLabel),'Clearance PDF still contains '.$removedLabel);}
@@ -470,7 +477,7 @@ try{
     [$code,$validationResponse]=http_call('/admin/transcripts.php',['csrf_token'=>$adminCsrf,'transcript_id'=>'invalid','reason'=>'Audit rejection'],$adminCookie,true);
     check($code===200&&str_contains($validationResponse,'Choose a valid record.'),'Transcript validation failed to handle invalid input.');
     foreach([
-        '/certificates/certificate.php?id=bad','/certificates/download.php?id=0',
+        '/certificates/download.php?id=0',
         '/transcripts/download.php?student=invalid','/admin/recovery.php?page=1abc','/admin/recovery.php?page=0',
         '/admin/recovery.php?page=100001','/admin/recovery.php?status=UNKNOWN',
         '/reports/generate.php?type=custom','/reports/generate.php?type=custom&from=2026-02-30&to=2026-10-07',

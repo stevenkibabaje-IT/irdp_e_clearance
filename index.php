@@ -40,7 +40,7 @@ if (current_user()) {
             <div class="eyebrow brand-eyebrow">Institute of Rural Development Planning</div>
             <h1>Student Clearance, <span>made simple.</span></h1>
             <p>
-                Start your clearance, track progress and access your certificate online.
+                Start your clearance, track progress and download your clearance transcript online.
             </p>
             <div class="landing-hero-actions">
                 <a class="btn primary" href="<?= e(url('auth/login.php')) ?>">Start / Login</a>
@@ -53,7 +53,7 @@ if (current_user()) {
         <li><?= icon('shield') ?> Secure</li>
         <li><?= icon('workflow') ?> 11 clearance stages</li>
         <li><?= icon('eye') ?> Track progress</li>
-        <li><?= icon('certificate') ?> Online certificate</li>
+        <li><?= icon('download') ?> Clearance transcript</li>
     </ul>
     <details class="landing-help" id="help" lang="sw">
         <summary>Help / Msaada <span>Bonyeza kupata maelekezo</span></summary>
@@ -78,8 +78,8 @@ if (current_user()) {
                     <p>Baada ya kuingia, fungua <strong>My Clearance</strong> kuona maendeleo ya hatua zote 11. Hatua ikikataliwa, soma sababu na maelekezo ya ofisi, rekebisha kilichoombwa, kisha tuma maelezo na ushahidi kupitia sehemu ya kutuma upya. Ofisi ikikubali marekebisho, hatua inayofuata itafunguliwa.</p>
                 </details>
                 <details>
-                    <summary>Cheti cha clearance kinapatikana lini?</summary>
-                    <p>Cheti kinatolewa baada ya hatua zote za clearance kuidhinishwa, pamoja na idhini ya mwisho. Ingia kwenye akaunti yako kuona hali ya clearance na kupata cheti baada ya kukamilika.</p>
+                    <summary>Clearance Transcript inapatikana lini?</summary>
+                    <p>Clearance Transcript inapatikana baada ya hatua zote 11 za clearance kuidhinishwa. Baada ya kukamilika, fungua Dashboard na bonyeza <strong>Download Clearance Transcript</strong> kupakua taarifa ya clearance yako.</p>
                 </details>
             </div>
             <aside class="landing-support" aria-labelledby="support-heading">
