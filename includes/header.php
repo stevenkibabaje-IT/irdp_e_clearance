@@ -46,6 +46,9 @@ if ($u) {
                 <?php if ($u['role'] === 'STUDENT'): ?>
                     <a href="<?= e(url('student/dashboard.php')) ?>"><?= icon('home') ?> <span>Dashboard</span></a>
                     <a href="<?= e(url('student/start.php')) ?>"><?= icon('plus') ?> <span>Start Clearance</span></a>
+                    <?php $navPeriod=clearance_period_state($pdo); if (!$navPeriod['academic_cycle'] || !get_clearance_for_cycle($pdo,(int)$u['student_id'],$navPeriod['academic_cycle'])): ?>
+                    <a href="<?= e(url('student/clearance_fee.php')) ?>"><?= icon('file-text') ?> <span>Clearance Fee</span></a>
+                    <?php endif; ?>
                     <a href="<?= e(url('student/status.php')) ?>"><?= icon('clipboard-check') ?> <span>My Clearance</span></a>
                     <a href="<?= e(url('student/profile.php')) ?>"><?= icon('user') ?> <span>My Profile</span></a>
                     <a href="<?= e(url('student/notifications.php')) ?>">
@@ -55,6 +58,7 @@ if ($u) {
                 <?php elseif (in_array($u['role'], ['OFFICER', 'SUPERVISOR'], true)): ?>
                     <a href="<?= e(url('officer/dashboard.php')) ?>"><?= icon('home') ?> <span>Dashboard</span></a>
                     <a href="<?= e(url('officer/dashboard.php')) ?>"><?= icon('clipboard-check') ?> <span>Pending Clearance</span></a>
+                    <?php if(clearance_fee_officer($pdo,(int)$u['id'])): ?><a href="<?= e(url('officer/clearance_fees.php')) ?>"><?= icon('file-text') ?> <span>Clearance Fee Payments</span></a><?php endif; ?>
                 <?php else: ?>
                     <a href="<?= e(url('admin/dashboard.php')) ?>"><?= icon('home') ?> <span>Dashboard</span></a>
                     <a href="<?= e(url('admin/users.php')) ?>"><?= icon('users') ?> <span>Users</span></a>

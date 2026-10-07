@@ -7,17 +7,9 @@ date_default_timezone_set('Africa/Dar_es_Salaam');
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
-        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ]);
-
-    session_start();
-}
+require_once __DIR__ . '/../config/application.php';
+require_once __DIR__ . '/session_security.php';
+start_application_session();
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/installer.php';
@@ -33,6 +25,8 @@ try {
 }
 
 require_once __DIR__ . '/functions.php';
+// Expiry must be checked before CSRF validation, activity renewal or any form action.
+enforce_session_security();
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0 && !$_POST && !$_FILES) {
         http_response_code(413);
@@ -47,3 +41,10 @@ foreach ($_GET as $value) {
     if (!is_string($value) || !mb_check_encoding($value, 'UTF-8') || preg_match('/[\x00-\x1F\x7F]/', $value)) { http_response_code(400); exit('Invalid request value.'); }
 }
 validate_session_account($pdo);
+if (current_user()) {
+    header('Cache-Control: private, no-store');
+    // Background status checks observe expiry; only real activity renews idle time.
+    if (!session_api_request()) {
+        touch_session_activity();
+    }
+}

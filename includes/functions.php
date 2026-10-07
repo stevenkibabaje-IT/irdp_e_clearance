@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 /** Shared helpers for URLs, sessions, permissions, notifications and clearance workflow operations. */
 require_once __DIR__ . '/../config/application.php';
+require_once __DIR__ . '/session_security.php';
 require_once __DIR__ . '/validation.php';
 require_once __DIR__ . '/clearance_workflow.php';
 require_once __DIR__ . '/finance_payments.php';
+require_once __DIR__ . '/clearance_fees.php';
 require_once __DIR__ . '/authentication.php';
 require_once __DIR__ . '/uploads.php';
 require_once __DIR__ . '/imports.php';
@@ -78,6 +80,9 @@ function verify_csrf(): void
     $submittedToken = $_POST['csrf_token'] ?? null;
 
     if (!is_string($sessionToken) || !is_string($submittedToken) || strlen($submittedToken) !== 64 || !hash_equals($sessionToken, $submittedToken)) {
+        if (session_api_request()) {
+            session_json_response(419, ['authenticated' => true, 'reason' => 'csrf']);
+        }
         http_response_code(419);
         exit('Your form session expired. Refresh the page and try again.');
     }
@@ -103,6 +108,7 @@ function current_user(): ?array
 function login_user(array $user): void
 {
     session_regenerate_id(true);
+    $_SESSION = [];
 
     $_SESSION['user'] = [
         'id' => (int) $user['id'],
@@ -114,6 +120,8 @@ function login_user(array $user): void
     ];
 
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    $_SESSION['session_started_at'] = time();
+    touch_session_activity();
 }
 
 function logout_user(): void
@@ -122,15 +130,14 @@ function logout_user(): void
 
     if (ini_get('session.use_cookies')) {
         $params = session_get_cookie_params();
-        setcookie(
-            session_name(),
-            '',
-            time() - 42000,
-            $params['path'],
-            $params['domain'] ?? '',
-            $params['secure'],
-            $params['httponly']
-        );
+        setcookie(session_name(), '', [
+            'expires' => time() - 42000,
+            'path' => $params['path'],
+            'domain' => $params['domain'] ?? '',
+            'secure' => $params['secure'],
+            'httponly' => $params['httponly'],
+            'samesite' => $params['samesite'] ?? 'Lax',
+        ]);
     }
 
     session_destroy();

@@ -11,6 +11,8 @@ $request = $period['academic_cycle']
     ? get_clearance_for_cycle($pdo,(int)$u['student_id'],(string)$period['academic_cycle'])
     : get_latest_clearance($pdo,(int)$u['student_id']);
 $stages = $request ? get_clearance_stages($pdo, (int) $request['id']) : [];
+$entryFee = !$request && $period['cycle_id'] ? clearance_fee_for_cycle($pdo,(int)$u['student_id'],(int)$period['cycle_id']) : null;
+$feeApproved = $entryFee && $entryFee['status']==='APPROVED';
 $completed = count(array_filter($stages, static fn (array $stage): bool => $stage['status'] === 'APPROVED'));
 $total = max(11, count($stages));
 $progress = (int) round(($completed / $total) * 100);
@@ -33,13 +35,17 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
     <?php if (!$request && $period['is_open']): ?>
-        <a class="btn primary" href="<?= e(url('student/start.php')) ?>">Start Clearance</a>
+        <a class="btn primary" href="<?= e(url($feeApproved?'student/start.php':'student/clearance_fee.php')) ?>"><?= $feeApproved?'Start Clearance':'Clearance Fee' ?></a>
     <?php elseif (!$request): ?>
         <span class="badge muted">CLEARANCE CLOSED</span>
     <?php else: ?>
         <a class="btn primary" href="<?= e(url('student/status.php')) ?>"><?= $request['status']==='COMPLETED'?'View Clearance':'Continue Clearance' ?></a>
     <?php endif; ?>
 </div>
+
+<?php if(!$request && $period['cycle_id']): ?>
+<section class="panel"><h2>Clearance entry fee</h2><p><strong>TSh <?= e(number_format((float)($entryFee['amount']??clearance_fee_amount($pdo,(int)$period['cycle_id'])),2)) ?></strong> · <?= e($entryFee?str_replace('_',' ',$entryFee['status']):'NOT REQUESTED') ?></p><p><?= $feeApproved?'Your payment is approved. You can now start clearance.':'Request a control number, pay the fee and upload your receipt. Finance approval unlocks Start Clearance.' ?></p><a class="btn secondary" href="<?= e(url('student/clearance_fee.php')) ?>">View fee / payment details</a></section>
+<?php endif; ?>
 
 <section class="panel">
     <div class="panel-head"><h2>Clearance Status</h2><span class="<?= e($period['is_open']?'badge success':'badge muted') ?>"><?= e($period['is_open']?'CLEARANCE OPEN':'CLEARANCE CLOSED') ?></span></div>
@@ -100,7 +106,7 @@ require_once __DIR__ . '/../includes/header.php';
         <?php if (!$request): ?>
             <div class="empty">
                 <p>You have not started your clearance yet.</p>
-                <a class="btn primary" href="<?= e(url('student/start.php')) ?>">Start Clearance</a>
+                <a class="btn primary" href="<?= e(url($feeApproved?'student/start.php':'student/clearance_fee.php')) ?>"><?= $feeApproved?'Start Clearance':'Pay Clearance Fee' ?></a>
             </div>
         <?php else: ?>
             <?php clearance_progress($stages); ?>

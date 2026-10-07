@@ -220,12 +220,11 @@ function validate_session_account(PDO $pdo): void {
     }
     $user=user_record($pdo,(int)current_user()['id']);
     if(!$user || !(int)$user['active'] || (int)($_SESSION['user']['auth_version']??0)!==(int)$user['auth_version']) {
-        logout_user();
-        redirect('auth/login.php');
+        end_authenticated_session('revoked');
     }
     $_SESSION['user']['role']=$user['role_name'];
     $_SESSION['user']['full_name']=$user['full_name'];
-    if($user['role_name'] !== 'STUDENT' && (int)$user['force_password_change'] && !in_array(basename($_SERVER['SCRIPT_NAME']??''),['change_password.php','logout.php'],true)) {
+    if($user['role_name'] !== 'STUDENT' && (int)$user['force_password_change'] && !session_api_request() && !in_array(basename($_SERVER['SCRIPT_NAME']??''),['change_password.php','logout.php'],true)) {
         redirect('auth/change_password.php');
     }
 }

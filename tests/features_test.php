@@ -175,27 +175,33 @@ try{
             file_put_contents($receipt,"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\n%%EOF\n");
             [$code,$financeReview]=http_call('/officer/review.php?stage='.$id,[],$financeCookie);
             check($code===200&&str_contains($financeReview,'name="control_number"'),'Finance control field missing.');
+            check(str_contains($financeReview,'value="PAYMENT_REQUESTED"')&&!str_contains($financeReview,'value="REJECTED"'),'Finance still displays Reject or lacks Send control number.');
             foreach(['decision','debt','recovered','comments','corrective_instructions'] as $removed){
                 check(!str_contains($financeReview,'name="'.$removed.'"'),'Finance form still contains '.$removed);
             }
             $decision=['csrf_token'=>token_from($financeReview),'stage_id'=>(string)$id,'review_cycle'=>'1','action'=>'APPROVED','control_number'=>$control];
+            $beforeReject=stage_context($pdo,$id);
+            [$code,$deniedReject]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['action'=>'REJECTED']),$financeCookie,true);
+            check($code===200&&str_contains($deniedReject,'rejection is not available')&&stage_context($pdo,$id)===$beforeReject,'Crafted Finance rejection was accepted.');
             foreach(['APPROVED','APPROVED_EVIDENCE','APPROVED_CORRECTION'] as $bypass){
                 [$code,$denied]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['action'=>$bypass]),$financeCookie,true);
                 check($code===200&&str_contains($denied,'required before approval')&&stage_context($pdo,$id)['status']==='PENDING','Finance approved without a receipt.');
             }
             foreach(['12','abc123','9912<script>','1e12',str_repeat('9',31)] as $invalid){
-                [$code,$invalidControl]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['action'=>'REJECTED','control_number'=>$invalid]),$financeCookie,true);
+                [$code,$invalidControl]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['action'=>'PAYMENT_REQUESTED','control_number'=>$invalid]),$financeCookie,true);
                 check($code===200&&str_contains($invalidControl,'control_number-error')&&stage_context($pdo,$id)['status']==='PENDING','Invalid control number published.');
             }
-            [$code]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['action'=>'REJECTED']),$financeCookie,true);
-            check($code===302&&stage_context($pdo,$id)['status']==='REJECTED','Finance could not request payment with only a control number.');
+            [$code]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['action'=>'PAYMENT_REQUESTED']),$financeCookie,true);
+            check($code===302&&stage_context($pdo,$id)['status']==='PENDING','Finance could not request payment with only a control number.');
+            [$code,$noDebtBypass]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['action'=>'APPROVED_NO_DEBT']),$financeCookie,true);
+            check($code===200&&str_contains($noDebtBypass,'cannot be bypassed')&&stage_context($pdo,$id)['status']==='PENDING','No-debt action erased an outstanding Finance payment request.');
             // Existing rejected Finance stages can receive a control number without losing history.
-            $pdo->prepare('UPDATE clearance_stages SET details_json=? WHERE id=?')->execute([json_encode(['decision'=>'NOT_CLEARED','debt'=>'2500','recovered'=>'0']),$id]);
+            $pdo->prepare('UPDATE clearance_stages SET status="REJECTED",details_json=? WHERE id=?')->execute([json_encode(['decision'=>'NOT_CLEARED','debt'=>'2500','recovered'=>'0']),$id]);
             [$code,$legacyFinance]=http_call('/officer/review.php?stage='.$id,[],$financeCookie);
             check($code===200&&str_contains($legacyFinance,'name="control_number"'),'Legacy rejected Finance stage cannot be reviewed.');
             [$code,$financeQueue]=http_call('/officer/dashboard.php',[],$financeCookie);
             check($code===200&&str_contains($financeQueue,'officer/review.php?stage='.$id),'Finance cannot update an outstanding control number.');
-            [$code]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['csrf_token'=>token_from($legacyFinance),'action'=>'REJECTED']),$financeCookie,true);
+            [$code]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['csrf_token'=>token_from($legacyFinance),'action'=>'PAYMENT_REQUESTED']),$financeCookie,true);
             check($code===302&&(int)stage_context($pdo,$id)['review_cycle']===2,'Legacy payment request did not preserve its previous review cycle.');
             foreach(['/student/dashboard.php','/student/status.php','/student/resubmit.php?stage='.$id] as $paymentPage){
                 [$code,$paymentHtml]=http_call($paymentPage,[],$financeStudentCookie);
@@ -219,7 +225,7 @@ try{
                 $upload=['csrf_token'=>token_from($paymentHtml),'stage_id'=>(string)$id,'mode'=>'finance_payment','control_number'=>$issued];
                 if($attempt===2){
                     [$code,$staleNumber]=http_call('/student/resubmit.php?stage='.$id,array_replace($upload,['control_number'=>$control])+['evidence[0]'=>new CURLFile($receipt,'application/pdf','receipt.pdf')],$financeStudentCookie,true);
-                    check($code===200&&str_contains($staleNumber,'control number changed')&&stage_context($pdo,$id)['status']==='REJECTED','Previous control number accepted.');
+                    check($code===200&&str_contains($staleNumber,'control number changed')&&stage_context($pdo,$id)['status']==='PENDING','Previous control number accepted.');
                 }
                 [$code]=http_call('/student/resubmit.php?stage='.$id,$upload+['evidence[0]'=>new CURLFile($receipt,'application/pdf','receipt.pdf')],$financeStudentCookie,true);
                 foreach($pdo->query('SELECT stored_name FROM stage_evidence WHERE stage_id='.$id) as $stored){$files[]=private_path('evidence',$stored['stored_name']);}
@@ -229,19 +235,31 @@ try{
                 check(!certificate_release_allowed($pdo,$fullRequest),'Receipt upload released certificate.');
                 [$code,$pendingPayment]=http_call('/student/dashboard.php',[],$financeStudentCookie);
                 check($code===200&&str_contains($pendingPayment,'Awaiting Finance review')&&!str_contains($pendingPayment,'name="evidence[]"'),'Pending payment status missing.');
+                if($attempt===2){
+                    $receiptBefore=finance_payment_details(stage_context($pdo,$id));
+                    [$code,$replacePage]=http_call('/student/resubmit.php?stage='.$id,[],$financeStudentCookie);
+                    check($code===200&&str_contains($replacePage,'Replace payment receipt'),'Student cannot correct a receipt before approval.');
+                    [$code]=http_call('/student/resubmit.php?stage='.$id,array_replace($upload,['csrf_token'=>token_from($replacePage)])+['evidence[0]'=>new CURLFile($receipt,'application/pdf','corrected-receipt.pdf')],$financeStudentCookie,true);
+                    $receiptAfter=finance_payment_details(stage_context($pdo,$id));
+                    check($code===302&&$receiptAfter['receipt_cycle']===$receiptBefore['receipt_cycle']+1&&$receiptAfter['receipt_id']!==$receiptBefore['receipt_id'],'Receipt correction did not preserve history and open a fresh review cycle.');
+                    foreach($pdo->query('SELECT stored_name FROM stage_evidence WHERE stage_id='.$id) as $stored){$files[]=private_path('evidence',$stored['stored_name']);}
+                }
                 [$code,$financeReview]=http_call('/officer/review.php?stage='.$id,[],$financeCookie);
                 check($code===200&&str_contains($financeReview,'receipt.pdf'),'Finance cannot see receipt.');
                 [$code]=http_call('/files/evidence.php?id='.$payment['receipt_id'],[],$financeCookie);check($code===200,'Finance receipt download blocked.');
                 [$code]=http_call('/files/evidence.php?id='.$payment['receipt_id'],[],$otherStudentCookie);check($code===403,'Another student accessed receipt.');
                 [$code]=http_call('/files/evidence.php?id='.$payment['receipt_id'],[],$otherOfficeCookie);check($code===403,'Another office accessed receipt.');
                 $decision=['csrf_token'=>token_from($financeReview),'stage_id'=>(string)$id,'review_cycle'=>(string)stage_context($pdo,$id)['review_cycle'],'action'=>'APPROVED','control_number'=>$issued];
+                $beforeDuplicate=stage_context($pdo,$id);
+                [$code,$duplicateNumber]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['action'=>'PAYMENT_REQUESTED']),$financeCookie,true);
+                check($code===200&&str_contains($duplicateNumber,'already been sent')&&stage_context($pdo,$id)===$beforeDuplicate,'Duplicate control-number submission invalidated an existing receipt.');
                 [$code,$staleApproval]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['review_cycle'=>'1']),$financeCookie,true);
                 check($code===200&&str_contains($staleApproval,'review cycle changed')&&stage_context($pdo,$id)['status']==='PENDING','Stale Finance decision accepted.');
                 if($attempt===1){
                     [$code,$wrongNumber]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['control_number'=>$newControl]),$financeCookie,true);
                     check($code===200&&str_contains($wrongNumber,'request a new receipt')&&stage_context($pdo,$id)['status']==='PENDING','Changed control approved against old receipt.');
-                    [$code]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['action'=>'REJECTED','control_number'=>$newControl]),$financeCookie,true);
-                    check($code===302&&stage_context($pdo,$id)['status']==='REJECTED'&&!finance_receipt_available($pdo,stage_context($pdo,$id)),'Reject failed to invalidate receipt.');
+                    [$code]=http_call('/officer/review.php?stage='.$id,array_replace($decision,['action'=>'PAYMENT_REQUESTED','control_number'=>$newControl]),$financeCookie,true);
+                    check($code===302&&stage_context($pdo,$id)['status']==='PENDING'&&!finance_receipt_available($pdo,stage_context($pdo,$id)),'Updated control number failed to invalidate receipt.');
                 }else{
                     [$code]=http_call('/officer/review.php?stage='.$id,$decision,$financeCookie,true);
                     check($code===302&&stage_context($pdo,$id)['status']==='APPROVED'&&stage_context($pdo,$id)['request_status']==='PAUSED','Finance could not approve independently or cleared another office rejection.');
@@ -250,7 +268,7 @@ try{
                 }
             }
             check(finance_details_clear(finance_payment_details(stage_context($pdo,$id))),'Approved payment did not clear finance.');
-            check((int)$pdo->query('SELECT COUNT(*) FROM stage_evidence WHERE stage_id='.$id)->fetchColumn()===2,'Rejected payment history lost.');
+            check((int)$pdo->query('SELECT COUNT(*) FROM stage_evidence WHERE stage_id='.$id)->fetchColumn()===3,'Previous payment history lost.');
             $pdo->prepare('UPDATE clearance_period SET cycle_id=? WHERE id=1')->execute([$periodBeforeFinance]);
             echo "PASS: independent early Finance review, mandatory/private receipts, owner/control/cycle checks and no premature completion\n";
             continue;
@@ -672,6 +690,73 @@ try{
     test_login('IRDP/BTCCD/MA25/0003','MUSHI0003',$startCookie);
     $cycle=clearance_period_state($pdo)['academic_cycle'];
     [$code,$startForm]=http_call('/student/start.php',[],$startCookie);check($code===200,'Start form unavailable.');
+    // Entry fee: actual HTTP request, control-number changes, private receipts and verified approval.
+    $requestsBefore=(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn();
+    [$code,$unpaidStart]=http_call('/student/start.php',['csrf_token'=>token_from($startForm),'academic_year'=>$cycle],$startCookie,true);
+    check($code===200&&str_contains($unpaidStart,'wait for Finance approval')&&(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn()===$requestsBefore,'Unpaid student bypassed the entry fee.');
+    $feeFinanceCookie=__DIR__.'/feature-fee-finance.cookies';$files[]=$feeFinanceCookie;test_login('FIN001','Mollel@2026',$feeFinanceCookie);
+    $feeOtherCookie=__DIR__.'/feature-fee-other.cookies';$files[]=$feeOtherCookie;test_login('IRDP/BTCCD/MA25/0006','SAID0006',$feeOtherCookie);
+    [$code,$feeSettings]=http_call('/officer/clearance_fees.php',[],$feeFinanceCookie);
+    check($code===200&&str_contains($feeSettings,'Set clearance entry fee'),'Finance cannot manage the fee.');
+    [$code]=http_call('/officer/clearance_fees.php',[],$adminCookie);check($code===403,'Admin gained Finance fee-setting authority.');
+    [$code]=http_call('/officer/clearance_fees.php',[],$officerCookie);check($code===403,'Another office accessed fee settings.');
+    $feeCycle=(int)clearance_period_state($pdo)['cycle_id'];
+    rejected(fn()=>set_clearance_fee_amount($pdo,$admin,$feeCycle,'10000'),'Admin set the Finance fee.');
+    rejected(fn()=>set_clearance_fee_amount($pdo,$ids['FIN001'],$feeCycle,'0'),'A zero fee was accepted.');
+    $beforeRate=clearance_fee_amount($pdo,$feeCycle);
+    [$code]=http_call('/officer/clearance_fees.php',['csrf_token'=>'invalid','cycle_id'=>(string)$feeCycle,'amount'=>'12000'],$feeFinanceCookie,true);
+    check($code===419&&clearance_fee_amount($pdo,$feeCycle)===$beforeRate,'Fee rate changed without CSRF.');
+    [$code,$feePage]=http_call('/student/clearance_fee.php',[],$startCookie);check($code===200&&str_contains($feePage,'10,000.00'),'Default fee is not TSh 10,000.');
+    [$code]=http_call('/student/clearance_fee.php',['csrf_token'=>token_from($feePage),'mode'=>'REQUEST'],$startCookie,true);check($code===302,'Student fee request failed.');
+    $feeStudent=(int)$pdo->query('SELECT id FROM students WHERE user_id='.$ids['IRDP/BTCCD/MA25/0003'])->fetchColumn();
+    $fee=clearance_fee_for_cycle($pdo,$feeStudent,$feeCycle);$feeId=(int)$fee['id'];
+    check($fee['status']==='REQUESTED'&&(float)$fee['amount']===10000.0&&request_clearance_fee($pdo,$ids['IRDP/BTCCD/MA25/0003'])===$feeId,'Fee request did not keep one payment per student/cycle.');
+    [$code]=http_call('/officer/clearance_fees.php',['csrf_token'=>token_from($feeSettings),'cycle_id'=>(string)$feeCycle,'amount'=>'12000'],$feeFinanceCookie,true);
+    check($code===302&&clearance_fee_amount($pdo,$feeCycle)==='12000.00'&&(float)clearance_fee_record($pdo,$feeId)['amount']===10000.0,'Rate change altered an existing quote.');
+    set_clearance_fee_amount($pdo,$ids['FIN001'],$feeCycle,'10000');
+    $feeReview='/officer/clearance_fee_review.php?id='.$feeId;
+    [$code,$feeReviewPage]=http_call($feeReview,[],$feeFinanceCookie);check($code===200,'Assigned Finance officer cannot review the entry fee.');
+    [$code]=http_call($feeReview,[],$officerCookie);check($code===403,'Another office viewed the fee review.');
+    $feeInput=['csrf_token'=>token_from($feeReviewPage),'payment_version'=>'1','mode'=>'APPROVE','confirm_payment'=>'1'];
+    [$code]=http_call($feeReview,$feeInput,$feeFinanceCookie,true);check($code===200&&clearance_fee_record($pdo,$feeId)['status']==='REQUESTED','Fee was approved without a receipt.');
+    [$code]=http_call($feeReview,array_replace($feeInput,['mode'=>'CONTROL','control_number'=>'991234000001']),$feeFinanceCookie,true);check($code===302,'Entry-fee control number failed.');
+    $fee=clearance_fee_record($pdo,$feeId);check($fee['status']==='AWAITING_PAYMENT'&&(int)$fee['payment_version']===2,'Control number did not bind the payment version.');
+    [$code,$feePage]=http_call('/student/clearance_fee.php',[],$startCookie);
+    $feeUpload=['csrf_token'=>token_from($feePage),'mode'=>'RECEIPT','payment_id'=>(string)$feeId,'payment_version'=>'2','control_number'=>'991234000001'];
+    [$code,$missingFeeReceipt]=http_call('/student/clearance_fee.php',$feeUpload,$startCookie,true);
+    check($code===200&&str_contains($missingFeeReceipt,'evidence-error')&&clearance_fee_record($pdo,$feeId)['status']==='AWAITING_PAYMENT','Receipt is not mandatory.');
+    $feePdf=__DIR__.'/feature-entry-fee-receipt.pdf';$files[]=$feePdf;file_put_contents($feePdf,"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
+    [$code,$otherFeePage]=http_call('/student/clearance_fee.php',[],$feeOtherCookie);
+    [$code]=http_call('/student/clearance_fee.php',array_replace($feeUpload,['csrf_token'=>token_from($otherFeePage)])+['evidence[0]'=>new CURLFile($feePdf,'application/pdf','entry-fee.pdf')],$feeOtherCookie,true);
+    check(in_array($code,[200,403],true)&&clearance_fee_record($pdo,$feeId)['status']==='AWAITING_PAYMENT','Another student uploaded a receipt for this payment.');
+    [$code]=http_call('/student/clearance_fee.php',$feeUpload+['evidence[0]'=>new CURLFile($feePdf,'application/pdf','entry-fee.pdf')],$startCookie,true);check($code===302,'Entry fee receipt upload failed.');
+    $fee=clearance_fee_record($pdo,$feeId);$oldReceipt=(int)$fee['receipt_id'];check($fee['status']==='AWAITING_REVIEW'&&(int)$fee['payment_version']===3,'Uploading a receipt approved the fee or lost its version.');
+    foreach([$startCookie,$feeFinanceCookie,$adminCookie] as $authorizedCookie){[$code,$pdfBody]=http_call('/files/clearance_fee_receipt.php?id='.$oldReceipt,[],$authorizedCookie);check($code===200&&str_starts_with($pdfBody,'%PDF'),'Authorized receipt download failed.');}
+    foreach([$feeOtherCookie,$officerCookie] as $unauthorizedCookie){[$code]=http_call('/files/clearance_fee_receipt.php?id='.$oldReceipt,[],$unauthorizedCookie);check($code===403,'Entry fee receipt was exposed.');}
+    [$code,$startForm]=http_call('/student/start.php',[],$startCookie);
+    [$code]=http_call('/student/start.php',['csrf_token'=>token_from($startForm),'academic_year'=>$cycle],$startCookie,true);check($code===200&&(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn()===$requestsBefore,'Unverified receipt unlocked clearance.');
+    [$code,$feeReviewPage]=http_call($feeReview,[],$feeFinanceCookie);$feeInput['csrf_token']=token_from($feeReviewPage);
+    [$code]=http_call($feeReview,array_replace($feeInput,['mode'=>'APPROVE','payment_version'=>'2']),$feeFinanceCookie,true);check($code===200&&clearance_fee_record($pdo,$feeId)['status']==='AWAITING_REVIEW','Stale approval bypassed receipt binding.');
+    [$code]=http_call($feeReview,array_replace($feeInput,['mode'=>'CONTROL','payment_version'=>'3','control_number'=>'991234000002']),$feeFinanceCookie,true);check($code===302,'Updating the entry fee control number failed.');
+    $fee=clearance_fee_record($pdo,$feeId);check($fee['receipt_id']===null&&$fee['status']==='AWAITING_PAYMENT'&&!clearance_fee_receipt($pdo,$fee),'Old receipt approved a new control number.');
+    [$code,$feePage]=http_call('/student/clearance_fee.php',[],$startCookie);
+    $feeUpload=array_replace($feeUpload,['csrf_token'=>token_from($feePage),'payment_version'=>'4','control_number'=>'991234000002']);
+    [$code]=http_call('/student/clearance_fee.php',$feeUpload+['evidence[0]'=>new CURLFile($feePdf,'application/pdf','new-entry-fee.pdf')],$startCookie,true);check($code===302,'New control-number receipt failed.');
+    $fee=clearance_fee_record($pdo,$feeId);
+    // A replacement remains separate evidence, invalidating an officer's open review.
+    [$code,$feePage]=http_call('/student/clearance_fee.php',[],$startCookie);$feeUpload['csrf_token']=token_from($feePage);$feeUpload['payment_version']=(string)$fee['payment_version'];
+    [$code]=http_call('/student/clearance_fee.php',$feeUpload+['evidence[0]'=>new CURLFile($feePdf,'application/pdf','corrected-entry-fee.pdf')],$startCookie,true);check($code===302,'Replacement receipt failed.');
+    $fee=clearance_fee_record($pdo,$feeId);check((int)$pdo->query('SELECT COUNT(*) FROM clearance_fee_receipts WHERE payment_id='.$feeId)->fetchColumn()===3,'Prior receipt history was lost.');
+    [$code,$feeReviewPage]=http_call($feeReview,[],$feeFinanceCookie);
+    $approveFee=['csrf_token'=>token_from($feeReviewPage),'mode'=>'APPROVE','payment_version'=>(string)$fee['payment_version']];
+    [$code]=http_call($feeReview,$approveFee,$feeFinanceCookie,true);check($code===200&&clearance_fee_record($pdo,$feeId)['status']==='AWAITING_REVIEW','Finance did not have to confirm payment verification.');
+    [$code]=http_call($feeReview,$approveFee+['confirm_payment'=>'1'],$feeFinanceCookie,true);check($code===302&&clearance_fee_record($pdo,$feeId)['status']==='APPROVED','Verified payment approval failed.');
+    rejected(fn()=>process_clearance_fee($pdo,$feeId,$ids['FIN001'],['mode'=>'CONTROL','payment_version'=>(string)$fee['payment_version'],'control_number'=>'991234000003']),'Approved fee was modified.');
+    $legacyRequests=$pdo->query('SELECT * FROM clearance_requests ORDER BY id')->fetchAll();$legacyStages=$pdo->query('SELECT * FROM clearance_stages ORDER BY id')->fetchAll();
+    migrate_clearance_fees($pdo);migrate_clearance_fees($pdo);
+    check($legacyRequests===$pdo->query('SELECT * FROM clearance_requests ORDER BY id')->fetchAll()&&$legacyStages===$pdo->query('SELECT * FROM clearance_stages ORDER BY id')->fetchAll(),'Entry fee migration changed existing clearances.');
+    echo "PASS: entry-fee gate, Finance-only rates, quote preservation, versioned controls/receipts, private downloads, verified approval and non-destructive repeat migration\n";
+    [$code,$startForm]=http_call('/student/start.php',[],$startCookie);check($code===200&&str_contains($startForm,'Entry fee approved'),'Approved fee did not unlock the start form.');
     $requestsBefore=(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn();
     $pdo->prepare('UPDATE users SET active=0 WHERE id=?')->execute([$ids['FIN001']]);
     [$code,$missingReviewer]=http_call('/student/start.php',['csrf_token'=>token_from($startForm),'academic_year'=>$cycle],$startCookie,true);
@@ -684,6 +769,15 @@ try{
     check(count($startedStages)===11&&count(array_filter($startedStages,fn($row)=>$row['status']==='PENDING'&&$row['started_at']!==null&&$row['actionable_at']!==null))===11,'Student start did not open all eleven office reviews.');
     check((int)$pdo->query('SELECT COUNT(*) FROM review_cycles rc INNER JOIN clearance_stages cs ON cs.id=rc.stage_id WHERE cs.clearance_request_id='.(int)$started['id'].' AND rc.opened_at IS NOT NULL AND rc.closed_at IS NULL')->fetchColumn()===11,'Student start did not open all eleven review cycles.');
     foreach($startedStages as $startedStage){check(reviewer_assignment_valid($pdo,stage_context($pdo,(int)$startedStage['id']),(int)$startedStage['assigned_officer_id']),'New stage has no permitted office reviewer.');}
+    [$code]=http_call('/student/clearance_fee.php',[],$startCookie);check($code===302,'Existing clearance was sent back to the entry fee.');
+    rejected(fn()=>request_clearance_fee($pdo,$ids['IRDP/BTCCD/MA25/0003']),'An existing clearance was charged again.');
+    $newFinanceStage=stage_context($pdo,(int)$startedStages[10]['id']);
+    [$code,$noDebtForm]=http_call('/officer/review.php?stage='.$newFinanceStage['id'],[],$feeFinanceCookie);
+    check($code===200&&str_contains($noDebtForm,'APPROVED_NO_DEBT'),'Finance cannot approve a student with no other debt.');
+    [$code]=http_call('/officer/review.php?stage='.$newFinanceStage['id'],['csrf_token'=>token_from($noDebtForm),'action'=>'APPROVED_NO_DEBT','review_cycle'=>'1'],$feeFinanceCookie,true);
+    $noDebt=stage_context($pdo,(int)$newFinanceStage['id']);
+    check($code===302&&$noDebt['status']==='APPROVED'&&finance_details_clear(finance_payment_details($noDebt))&&!isset(finance_payment_details($noDebt)['control_number']),'No-debt approval charged the entry fee again.');
+    echo "PASS: existing requests are exempt, approved entry fee starts all offices, and Finance approves no other debt without another payment\n";
     $closedCookie=__DIR__.'/feature-closed.cookies';$files[]=$closedCookie;
     test_login('IRDP/ODICT/MA25/0004','MALLYA0004',$closedCookie);
     $pdo->exec('UPDATE clearance_period SET mode="MANUAL_CLOSED" WHERE id=1');
@@ -743,6 +837,7 @@ try{
 finally{
     if($other&&$other->inTransaction()){$other->rollBack();}$other=null;
     if($pdo&&$pdo->inTransaction()){$pdo->rollBack();}
+    if($pdo && $created){try{foreach($pdo->query('SELECT stored_name FROM clearance_fee_receipts') as $receipt){$files[]=private_path('evidence',$receipt['stored_name']);}}catch(Throwable $ignored){}}
     if(is_resource($web)){proc_terminate($web);proc_close($web);}
     foreach(array_unique($files) as $file){if(is_file($file)){unlink($file);}}
     $sessionTarget=realpath(__DIR__.'/.feature-sessions');

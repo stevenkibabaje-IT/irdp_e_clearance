@@ -53,6 +53,16 @@ Forgot password: users submit their username / registration number from the logi
 
 After login, Students, Officers, Supervisors and Administrators can use **Log out** in the top bar or sidebar. The top-bar button is also available on mobile and returns users to the login page after ending their session.
 
+### Session security on localhost
+
+- Authenticated sessions expire after **30 minutes without activity**, or **8 hours after login** even while active. Every request checks expiry on the server before a form action can run.
+- A warning appears **1 minute before expiry**. **Continue session / Endelea** renews the idle deadline and keeps the current form open; the 8-hour limit requires a new login.
+- Activity while filling forms renews the idle timer at most once per minute. Background status checks do not keep an unused account signed in. Tabs synchronize through the server when they regain focus and during status checks.
+- Sessions use strict mode and cookie-only IDs, with `HttpOnly` and `SameSite=Lax`. The `Secure` cookie flag is enabled automatically over HTTPS; ordinary HTTP localhost access still works.
+- Existing signed-in sessions from before this update must log in again. Settings are in `config/application.php`.
+
+Verify expiry, CSRF, cookie settings and revoked sessions with `C:\xampp\php\php.exe tests/session_security_test.php`. Browser warning, continuation and mobile checks run with `tests/responsive_test.php`.
+
 ## Demo accounts
 
 ### Administrator
@@ -131,9 +141,19 @@ The automatic upgrade opens formerly `LOCKED` stages on active requests and pres
 
 Administrators control the period from **Clearance Period**. Students can still log in while it is closed, but server-side checks reject new starts and resubmissions. Academic Results has been removed from both Admin and Student pages. After all eleven offices approve and liabilities are cleared, the system issues a **Clearance Transcript** with student/programme details, the clearance cycle, each approving office, the officer who approved and the approval date. It contains no marks, grades or GPA. Approvals are stored in an immutable document snapshot; repeated downloads reuse that snapshot. The PDF includes a document number and verification QR code at transcripts/verify.php; administrators can revoke issued documents.
 
-## Reports
+## Clearance entry fee
 
-Finance (stage 11) uses a control number and the **Reject** / **Approve** buttons. Enter a 6–30 digit control number and choose Reject to send the payment request to the student. The student sees it on the dashboard and My Clearance, pays, and uploads one PDF/JPG/PNG receipt up to 5 MB. Finance can then open the private receipt and approve or reject it. Approval is blocked until a receipt for the current control number and review cycle exists. Changing a control number requires Reject and a new receipt. Rejected receipts and previous control numbers stay in the history. Payment verification is performed by Finance; uploading a receipt alone does not complete clearance. Existing approved records and issued clearance documents remain usable.
+Students without an existing clearance request for the selected academic cycle pay a **TSh 10,000** entry fee before **Start Clearance**. Existing in-progress and completed requests continue without this new fee; their decisions and documents are preserved.
+
+The student selects **Clearance Fee → Request control number**. The assigned **Finance and Accounting officer** uses **Clearance Fee Payments** to issue the number, reviews the student's private receipt and explicitly confirms payment before approval unlocks Start Clearance. Receipt upload alone does not approve payment. Finance also sets the fee per academic cycle; the default is TSh 10,000, and rate changes affect new requests only. Administrators continue to control the clearance period and do not set this fee.
+
+Each student has one entry-fee payment per cycle. Issued amounts are retained, changed control numbers require new receipts, replacements invalidate stale approvals, and prior receipt versions remain in the authorized payment history. Student requests/uploads and new clearance starts respect the open period. Finance can verify submitted payments while the period is closed, but clearance cannot start until it reopens. The additive migration creates fee tables without updating existing clearance records.
+
+## Finance debt review
+
+Finance (stage 11) reviews **other debts separately from the entry fee**. If none remain, the officer selects **Approve — no other debt** without requiring another receipt. An existing outstanding payment cannot be bypassed with this action. Otherwise, use **Send control number** / **Update control number**, then **Approve** after verifying payment. Enter a 6–30 digit number; the stage stays **PENDING** while the student pays and uploads one PDF/JPG/PNG receipt up to 5 MB. Approval requires the current number, review cycle and receipt. Changing the number requires a new receipt; previous numbers, receipts and decisions remain in history. Finance rejection is unavailable in the UI and blocked on the server. Active legacy Finance rejections reopen as pending without changing approvals or issued documents. All 11 office approvals are required for completion.
+
+## Reports
 
 Administrators can generate weekly, monthly and custom date-range PDF reports.
 

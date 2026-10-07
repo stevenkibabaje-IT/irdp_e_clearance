@@ -65,7 +65,7 @@ try {
     }
     foreach ($records[3]['stages'] as $number => $stageId) {
         $stage=stage_context($pdo,$stageId);$fields=review_fields($number);
-        $input=['action'=>$number===11?'REJECTED':'APPROVED','comments'=>'Responsive Finance fixture','corrective_instructions'=>'','review_cycle'=>'1'];
+        $input=['action'=>$number===11?'PAYMENT_REQUESTED':'APPROVED','comments'=>'Responsive Finance fixture','corrective_instructions'=>'','review_cycle'=>'1'];
         foreach($fields as [$key,$label,$type]){$input[$key]=$type==='control_number'?'991234567890':($type==='number'?'0':($type==='asset'?'AVAILABLE':'CLEARED'));}
         process_stage_decision($pdo,$stageId,(int)$stage['assigned_officer_id'],$input,$fields);
     }
@@ -78,7 +78,12 @@ try {
     $pdo->prepare('UPDATE users SET full_name=? WHERE id=?')->execute(['Alexandria Mwakalinga '.str_repeat('Mwambalasa', 10), $records[1]['user_id']]);
     $pdo->prepare('INSERT INTO notifications(user_id,title,message) VALUES (?,?,?)')->execute([$records[1]['user_id'], 'Office review update', str_repeat('ReceiptReference', 24).'.pdf']);
     $doc = transcript_for_student($pdo, (int)$records[0]['id'], (int)$records[0]['request_id']);
+    $newStudentUser=(int)$pdo->query('SELECT id FROM users WHERE username="'.$definitions[3]['registration_number'].'"')->fetchColumn();
+    $entryFeeId=request_clearance_fee($pdo,$newStudentUser);
+    $financeUser=(int)$pdo->query('SELECT id FROM users WHERE username="FIN001"')->fetchColumn();
+    process_clearance_fee($pdo,$entryFeeId,$financeUser,['mode'=>'CONTROL','payment_version'=>'1','control_number'=>'991234567899']);
     $fixture = [
+        'session_directory'=>$temporary.'/sessions',
         'admin'=>['username'=>'admin', 'password'=>'Admin@IRDP2026'],
         'student'=>['username'=>$records[1]['username'], 'password'=>$records[1]['password']],
         'completed'=>['username'=>$records[0]['username'], 'password'=>$records[0]['password']],
@@ -87,6 +92,7 @@ try {
         'finance_officer'=>['username'=>'FIN001','password'=>'Mollel@2026'],
         'finance_student'=>['username'=>$records[3]['username'],'password'=>$records[3]['password']],
         'finance_stage'=>$records[3]['stages'][11],
+        'entry_fee'=>$entryFeeId,
         'review_stage'=>$records[2]['stages'][1], 'rejected_stage'=>$records[1]['stages'][1],
         'certificate_request'=>$records[0]['request_id'], 'transcript_token'=>$doc['verification_token'],
     ];

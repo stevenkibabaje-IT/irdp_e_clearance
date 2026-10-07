@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         verify_csrf();
         process_stage_decision($pdo,$stageId,(int)$u['id'],$_POST,$detailFields);
         flash('success', $isFinance
-            ? (($_POST['action']??'') === 'REJECTED' ? 'Control number sent to the student. Awaiting a payment receipt.' : 'Payment receipt approved. Clearance completes when all 11 offices approve.')
+            ? (($_POST['action']??'') === 'PAYMENT_REQUESTED' ? 'Control number sent to the student. Awaiting a payment receipt.' : 'Finance stage approved. Clearance completes when all 11 offices approve.')
             : (($_POST['action']??'')==='REJECTED'?'Stage rejected. Awaiting student response and evidence. Other offices can continue reviewing.':'Stage approved. Clearance completes when all 11 offices approve.'));
         redirect('officer/dashboard.php');
     } catch (Throwable $e) {
@@ -117,7 +117,7 @@ require_once __DIR__ . '/../includes/header.php';
         <?php if ($currentEvidence): ?>
             <ul><?php foreach ($currentEvidence as $file): ?><li><a href="<?= e(url('files/evidence.php?id='.$file['id'])) ?>"><?= e($file['original_name']) ?></a> (<?= e(strtoupper(pathinfo($file['original_name'],PATHINFO_EXTENSION))) ?>, <?= (int)ceil((int)$file['byte_size']/1024) ?> KB)</li><?php endforeach; ?></ul>
         <?php else: ?><p class="muted"><?= $isFinance ? 'No receipt is awaiting review for the current payment request.' : 'The student submitted an explanation without attached files.' ?></p><?php endif; ?>
-        <p class="muted"><?= $isFinance ? 'Open the receipt and confirm payment for the control number below before approving. Approval completes clearance.' : 'Approve when the correction and office requirements are satisfied. Approval opens the next clearance stage.' ?></p>
+        <p class="muted"><?= $isFinance ? 'Open the receipt and confirm payment for the control number below before approving. Clearance completes after all 11 offices approve.' : 'Approve when the correction and office requirements are satisfied. Other offices review independently.' ?></p>
     </section>
 <?php endif; ?>
 
@@ -144,8 +144,11 @@ require_once __DIR__ . '/../includes/header.php';
     <section class="panel">
         <h2>Office Review</h2>
         <?php if ($isFinance): ?>
-            <p class="muted">Enter the control number and select Reject to request payment from the student. After the student uploads a receipt, verify it and select Approve or Reject.</p>
-            <?php if (!$financeReceiptReady): ?><div class="alert info">A payment receipt must be submitted before you can approve.</div><?php endif; ?>
+            <p class="muted">Review any other outstanding debts. The entry fee is handled separately before clearance starts. If another payment is required, send a control number and verify its receipt before approving.</p>
+            <?php if (!finance_has_payment_request($existingDetails)): ?>
+            <form method="post"><?php csrf_field(); ?><input type="hidden" name="stage_id" value="<?= $stageId ?>"><input type="hidden" name="review_cycle" value="<?= (int)$stage['review_cycle'] ?>"><button class="btn primary" type="submit" name="action" value="APPROVED_NO_DEBT" onclick="return confirmAction('Confirm that this student has no other outstanding Finance debt?');"><?= icon('check-circle') ?> Approve — no other debt</button></form>
+            <h3>Other debt requires payment</h3>
+            <?php elseif (!$financeReceiptReady): ?><div class="alert info">A receipt for this outstanding payment must be verified before approval.</div><?php endif; ?>
         <?php else: ?>
             <p class="muted">Complete the fields that apply to your office, then approve or reject the stage.</p>
         <?php endif; ?>
@@ -195,15 +198,21 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
 
             <div class="form-actions">
+                <?php if ($isFinance): ?>
+                <button class="btn secondary" type="submit" name="action" value="PAYMENT_REQUESTED" onclick="return confirmAction('Send this control number to the student? A new control number will require a new receipt.');">
+                    <?= icon('file-text') ?> <?= isset($existingDetails['control_number']) ? 'Update control number' : 'Send control number' ?>
+                </button>
+                <?php else: ?>
                 <button
                     class="btn danger"
                     type="submit"
                     name="action"
                     value="REJECTED"
-                    onclick="<?= $isFinance ? "return confirmAction('Send this control number to the student and request a payment receipt?');" : "document.getElementById('comments').required=true;document.getElementById('corrective_instructions').required=true;return confirmAction('Reject this office stage and request student corrections? Other offices can continue.');" ?>"
+                    onclick="document.getElementById('comments').required=true;document.getElementById('corrective_instructions').required=true;return confirmAction('Reject this office stage and request student corrections? Other offices can continue.');"
                 >
                     <?= icon('x-circle') ?> Reject
                 </button>
+                <?php endif; ?>
                 <button class="btn primary" type="submit" name="action" value="<?= e($approvalAction) ?>" <?= $isFinance && !$financeReceiptReady ? 'disabled' : '' ?> <?= !$isFinance ? "onclick=\"document.getElementById('comments').required=false;document.getElementById('corrective_instructions').required=false;\"" : '' ?>>
                     <?= icon('check-circle') ?> <?= e($approvalLabel) ?>
                 </button>

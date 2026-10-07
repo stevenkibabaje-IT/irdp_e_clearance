@@ -18,5 +18,6 @@
     }
 </script>
 <script src="<?= e(url('assets/js/validation.js?v=' . filemtime(__DIR__ . '/../assets/js/validation.js'))) ?>" defer></script>
+<?php if (current_user()): require __DIR__ . '/session_warning.php'; endif; ?>
 </body>
 </html>

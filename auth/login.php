@@ -11,6 +11,12 @@ if (current_user()) {
 
 $error = '';
 $username = '';
+$sessionNotice = match ($_GET['session'] ?? '') {
+    'idle' => 'Your session ended after 30 minutes without activity. Please log in again.',
+    'absolute' => 'Your session reached its 8-hour limit. Please log in again.',
+    'expired', 'revoked' => 'Your session has ended. Please log in again.',
+    default => '',
+};
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = is_string($_POST['username'] ?? null) ? trim($_POST['username']) : '';
@@ -114,6 +120,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <h2>Login to Your Account</h2>
             <p class="muted">Enter your credentials to continue.</p>
+
+            <?php if ($sessionNotice !== ''): ?>
+                <div class="alert warning" role="status"><?= e($sessionNotice) ?></div>
+            <?php endif; ?>
 
             <?php if ($error !== ''): ?>
                 <div class="alert danger" role="alert" id="login-error">

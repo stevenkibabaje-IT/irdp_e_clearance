@@ -77,6 +77,9 @@ $listStmt = $pdo->prepare(
 $listStmt->execute([(int) $u['id']]);
 $rows = $listStmt->fetchAll();
 
+$isFinanceOfficer=clearance_fee_officer($pdo,(int)$u['id']);
+$feePending=0;
+if($isFinanceOfficer){$feeCount=$pdo->prepare('SELECT COUNT(*) FROM clearance_fee_payments WHERE assigned_officer_id=? AND status<>"APPROVED"');$feeCount->execute([$u['id']]);$feePending=(int)$feeCount->fetchColumn();}
 $pageTitle = 'Officer Dashboard';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -90,6 +93,7 @@ require_once __DIR__ . '/../includes/header.php';
         </p>
     </div>
 </div>
+<?php if($isFinanceOfficer): ?><section class="panel"><div class="panel-head"><h2>Clearance entry fees</h2><span class="badge warning"><?= $feePending ?> pending</span></div><p>Set the entry fee, issue control numbers and approve verified payments before students start clearance.</p><a class="btn primary" href="<?= e(url('officer/clearance_fees.php')) ?>"><?= icon('file-text') ?> Clearance Fee Payments</a></section><?php endif; ?>
 
 <div class="stats-grid">
     <div class="stat-card warning">

@@ -36,7 +36,7 @@ $pageTitle=$isFinance ? 'Finance Payment Receipt' : 'Response and Evidence';requ
     <p>Decision: <?= e($stage['status']) ?></p>
     <?php if ($error): ?><div class="alert danger" role="alert"><?= e($error) ?></div><?php endif; ?>
     <?php if ($isFinance): ?>
-        <?php finance_payment_form($stage,$errors); ?>
+        <?php finance_payment_form($stage,$errors,true); ?>
         <a class="btn secondary" href="<?= e(url('student/status.php#stage-'.$stageId)) ?>">Back to My Clearance</a>
     <?php elseif ($stage['status']==='REJECTED'): ?>
         <div class="comment rejection">

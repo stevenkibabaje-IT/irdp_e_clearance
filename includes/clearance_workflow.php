@@ -62,12 +62,14 @@ function resubmit_stage(PDO $pdo, int $stageId, int $studentUser, string $respon
     $pdo->beginTransaction();
     try {
         $stage=stage_context($pdo,$stageId,true);
-        if ((int)$stage['student_user_id']!==$studentUser || $stage['status']!=='REJECTED'
-            || !in_array($stage['request_status'],['IN_PROGRESS','PAUSED'],true)) {
-            throw new RuntimeException('Only your rejected stage can be resubmitted.');
-        }
         $isFinance = (int)$stage['step_number'] === 11;
         $payment = finance_payment_details($stage);
+        $awaitingPayment = $isFinance && in_array($stage['status'], ['PENDING','IN_REVIEW','REJECTED'], true)
+            && in_array($payment['payment_status'] ?? '', ['AWAITING_PAYMENT','AWAITING_REVIEW'], true);
+        if ((int)$stage['student_user_id']!==$studentUser || ($isFinance ? !$awaitingPayment : $stage['status']!=='REJECTED')
+            || !in_array($stage['request_status'],['IN_PROGRESS','PAUSED'],true)) {
+            throw new RuntimeException($isFinance ? 'This Finance stage is not awaiting a payment receipt.' : 'Only your rejected stage can be resubmitted.');
+        }
         if ($isFinance) {
             $issuedNumber = finance_control_number($payment['control_number'] ?? null);
             if ($controlNumber === null || finance_control_number($controlNumber) !== $issuedNumber) {
@@ -81,6 +83,7 @@ function resubmit_stage(PDO $pdo, int $stageId, int $studentUser, string $respon
             $response = text_input(['response'=>$response], 'response', 4000, true);
         }
         $cycle=(int)$stage['review_cycle']+1;
+        $pdo->prepare('UPDATE review_cycles SET closed_at=COALESCE(closed_at,NOW()) WHERE stage_id=? AND cycle_number=?')->execute([$stageId,$stage['review_cycle']]);
         $pdo->prepare('INSERT INTO review_cycles(stage_id,cycle_number,opened_at,student_response) VALUES (?,?,NOW(),?)')->execute([$stageId,$cycle,$response]);
         $receiptId = null;
         foreach($files as $file) {
@@ -171,44 +174,62 @@ function certificate_release_allowed(PDO $pdo,int $requestId): bool {
 }
 function process_stage_decision(PDO $pdo,int $stageId,int $reviewer,array $input,array $fields): void {
     $action=text_input($input,'action',20);
+    $noDebt=$action==='APPROVED_NO_DEBT';
+    if($noDebt){$action='APPROVED';}
     $acceptEvidence=$action==='APPROVED_EVIDENCE';
     $acceptCorrection=$acceptEvidence || $action==='APPROVED_CORRECTION';
     if($acceptCorrection){$action='APPROVED';}
     $comments = '';
     $instructions = '';
-    if(!in_array($action,['APPROVED','REJECTED'],true)) {
-        throw new RuntimeException('Choose Approve or Reject.');
+    if(!in_array($action,['APPROVED','REJECTED','PAYMENT_REQUESTED'],true)) {
+        throw new RuntimeException('Choose a valid office action.');
     }
     $cycle=positive_id($input['review_cycle']??null,'review_cycle');
     $pdo->beginTransaction();
     try {
         $stage=stage_context($pdo,$stageId,true);
         lock_review_stage($pdo,(int)$stage['clearance_request_id'],$stageId,$reviewer,(string)$stage['status'],
-            (int)$stage['step_number'] === 11 && $action === 'REJECTED');
+            (int)$stage['step_number'] === 11 && $action === 'PAYMENT_REQUESTED');
         if($cycle!==(int)$stage['review_cycle']) {
             throw new RuntimeException('This review cycle changed. Refresh before deciding.');
         }
         $isFinance = (int)$stage['step_number'] === 11;
         if ($isFinance) {
-            // Finance always uses the server's control-number schema, even on a crafted request.
-            $details = validate_review_details(review_fields(11), $input);
+            if ($action === 'REJECTED') {
+                throw new RuntimeException('Finance uses Send control number and Approve; rejection is not available.');
+            }
+            // Finance decisions use server-defined fields, including explicit no-debt approval.
             $existing = finance_payment_details($stage);
-            if ($action === 'APPROVED') {
-                if (!finance_receipt_available($pdo, $stage)) {
-                    throw new ValidationException(['control_number'=>'A payment receipt for this control number is required before approval.']);
-                }
-                if (($existing['control_number'] ?? null) !== $details['control_number']) {
-                    throw new ValidationException(['control_number'=>'Reject with the new control number and request a new receipt before approving.']);
-                }
-                $details = $existing;
-                $details['payment_status'] = 'APPROVED';
-                $comments = 'Payment receipt verified for control number '.$details['control_number'].'.';
+            if ($noDebt) {
+                if (finance_has_payment_request($existing)) { throw new RuntimeException('An outstanding Finance payment request cannot be bypassed. Verify its receipt before approval.'); }
+                $details=['finance_mode'=>'NO_OTHER_DEBT','decision'=>'CLEARED','debt'=>'0','recovered'=>'0'];
+                $comments='Finance reviewed the student account and confirmed no other outstanding debt.';
             } else {
-                $details['payment_status'] = 'AWAITING_PAYMENT';
-                $comments = 'Payment required for control number '.$details['control_number'].'.';
-                $instructions = 'Pay using control number '.$details['control_number'].' and upload the payment receipt. If your previous receipt was rejected, contact Finance and upload a corrected receipt.';
+                $details = validate_review_details(review_fields(11), $input);
+                if ($action === 'APPROVED') {
+                    if (!finance_receipt_available($pdo, $stage)) {
+                        throw new ValidationException(['control_number'=>'A payment receipt for this control number is required before approval.']);
+                    }
+                    if (($existing['control_number'] ?? null) !== $details['control_number']) {
+                        throw new ValidationException(['control_number'=>'Send the new control number and request a new receipt before approving.']);
+                    }
+                    $details = $existing;
+                    $details['payment_status'] = 'APPROVED';
+                    $comments = 'Payment receipt verified for control number '.$details['control_number'].'.';
+                } else {
+                    if (($existing['control_number'] ?? null) === $details['control_number']
+                        && in_array($existing['payment_status'] ?? '', ['AWAITING_PAYMENT','AWAITING_REVIEW'], true)
+                        && $stage['status'] !== 'REJECTED') {
+                        throw new ValidationException(['control_number'=>'This control number has already been sent. Wait for payment or verify the submitted receipt.']);
+                    }
+                    $details['payment_status'] = 'AWAITING_PAYMENT';
+                    $comments = 'Payment required for control number '.$details['control_number'].'.';
+                    $instructions = 'Pay using control number '.$details['control_number'].' and upload the payment receipt for Finance verification.';
+                }
             }
         } else {
+            if ($noDebt) { throw new RuntimeException('Only Finance can confirm no other debt.'); }
+            if ($action === 'PAYMENT_REQUESTED') { throw new RuntimeException('Only Finance can send a payment control number.'); }
             $details = validate_review_details($fields, $input);
             $comments = text_input($input,'comments',4000,$action==='REJECTED');
             $instructions = text_input($input,'corrective_instructions',4000,$action==='REJECTED');
@@ -240,20 +261,24 @@ function process_stage_decision(PDO $pdo,int $stageId,int $reviewer,array $input
         if($action==='APPROVED'&&!liabilities_clear($details,(int)$stage['step_number'])) {
             throw new RuntimeException('Resolve outstanding liabilities and missing items before approval.');
         }
-        if ($isFinance && $stage['status'] === 'REJECTED') {
+        if ($isFinance && $action === 'PAYMENT_REQUESTED' && ($existing || $stage['status'] === 'REJECTED')) {
             // A changed payment request gets a new cycle, preserving prior control numbers.
+            $pdo->prepare('UPDATE review_cycles SET closed_at=COALESCE(closed_at,NOW()) WHERE stage_id=? AND cycle_number=?')->execute([$stageId,$cycle]);
             $cycle++;
             $pdo->prepare('INSERT INTO review_cycles(stage_id,cycle_number,opened_at) VALUES (?,?,NOW())')->execute([$stageId,$cycle]);
             $pdo->prepare('UPDATE clearance_stages SET review_cycle=? WHERE id=?')->execute([$cycle,$stageId]);
         }
         ensure_review_cycle($pdo,$stageId);
-        $pdo->prepare('UPDATE clearance_stages SET status=?,comments=?,corrective_instructions=?,details_json=?,reviewed_at=NOW(),actionable_at=NULL WHERE id=?')->execute([$action,$comments,$instructions,json_encode($details,JSON_THROW_ON_ERROR),$stageId]);
+        $paymentRequested = $action === 'PAYMENT_REQUESTED';
+        $pdo->prepare('UPDATE clearance_stages SET status=?,comments=?,corrective_instructions=?,details_json=?,reviewed_at=IF(?,NULL,NOW()),actionable_at=IF(?,NOW(),NULL) WHERE id=?')->execute([$paymentRequested ? 'PENDING' : $action,$comments,$instructions,json_encode($details,JSON_THROW_ON_ERROR),$paymentRequested ? 1 : 0,$paymentRequested ? 1 : 0,$stageId]);
         $pdo->prepare('INSERT INTO stage_actions(stage_id,officer_id,action,comments,corrective_instructions,details_json,review_cycle) VALUES (?,?,?,?,?,?,?)')->execute([$stageId,$reviewer,$action,$comments,$instructions,json_encode($details,JSON_THROW_ON_ERROR),$cycle]);
-        $pdo->prepare('UPDATE review_cycles SET closed_at=NOW() WHERE stage_id=? AND cycle_number=?')->execute([$stageId,$cycle]);
+        if (!$paymentRequested) { $pdo->prepare('UPDATE review_cycles SET closed_at=NOW() WHERE stage_id=? AND cycle_number=?')->execute([$stageId,$cycle]); }
         refresh_clearance_request_status($pdo,(int)$stage['clearance_request_id']);
-        if($action==='REJECTED') {
-            notify_stage($pdo,$stage,$isFinance ? 'Finance payment required' : 'Clearance stage rejected',
-                $isFinance ? $instructions : 'Stage '.$stage['step_number'].': '.$comments.' Corrective instructions: '.$instructions.'. Submit a response and evidence to reopen this stage.');
+        if ($paymentRequested) {
+            notify_stage($pdo,$stage,'Finance payment required',$instructions);
+        } elseif($action==='REJECTED') {
+            notify_stage($pdo,$stage,'Clearance stage rejected',
+                'Stage '.$stage['step_number'].': '.$comments.' Corrective instructions: '.$instructions.'. Submit a response and evidence to reopen this stage.');
         } elseif (certificate_release_allowed($pdo,(int)$stage['clearance_request_id'])) {
             $pdo->prepare('UPDATE clearance_requests SET status="COMPLETED",completed_at=NOW() WHERE id=?')->execute([$stage['clearance_request_id']]);
             issue_certificate($pdo,(int)$stage['clearance_request_id']);

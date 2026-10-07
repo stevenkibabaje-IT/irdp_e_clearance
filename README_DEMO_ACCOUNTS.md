@@ -73,11 +73,15 @@ Kila officer anafanya review ya ofisi yake bila kusubiri nyingine.
 ## 5. Jaribu clearance
 
 1. Ingia kama mwanafunzi mpya, kwa mfano `IRDP/BTCCD/MA25/0006`.
-2. Bonyeza **Start Clearance**, chagua academic cycle iliyofunguliwa na admin, kisha tuma ombi.
-3. Fungua **My Clearance**. Ofisi zote 11 zinaanza **PENDING**.
-4. Log out, ingia kama officer na bonyeza **Review** kwenye mwanafunzi huyo. Jaza taarifa za ofisi yako na uchague **Approve** au **Reject**.
-5. Rudia kwa ofisi nyingine kwa mpangilio wowote. Unaweza kuanza na Admissions kabla ya Library; kila ofisi ina review yake.
-6. Ofisi zote 11 zikiidhinisha na mahitaji yote kukamilika, mwanafunzi anaona **COMPLETED** na **Download Clearance Transcript** kwenye Dashboard.
+2. Fungua **Clearance Fee** na bonyeza **Request control number**. Ada ya mwanzo ni **TSh 10,000**.
+3. Log out, ingia kama Finance (`FIN001`) na fungua **Clearance Fee Payments**. Finance anaweza kuweka au kubadilisha ada kwa cycle husika; kiwango kipya kinatumika kwa maombi mapya tu. Fungua **Review payment**, weka control number na bonyeza **Send control number**.
+4. Ingia tena kama mwanafunzi. Lipa kwa control number hiyo, kisha kwenye **Clearance Fee** pakia receipt moja ya PDF/JPG/PNG, hadi 5 MB.
+5. Ingia kama Finance, fungua receipt, hakiki malipo kwenye kumbukumbu za malipo, tia alama ya uthibitisho na bonyeza **Approve payment**.
+6. Mwanafunzi sasa anaweza kubonyeza **Start Clearance**, kuchagua academic cycle iliyofunguliwa na admin na kutuma ombi. Fungua **My Clearance**; ofisi zote 11 zinaanza **PENDING**.
+7. Log out, ingia kama officer na bonyeza **Review** kwenye mwanafunzi huyo. Ofisi nyingine zina **Approve** au **Reject**. Finance akikuta hakuna deni jingine anachagua **Approve — no other debt**; akikuta deni jingine anaweka control number tofauti na kuhakiki receipt yake.
+8. Rudia kwa ofisi nyingine kwa mpangilio wowote. Ofisi zote 11 zikiidhinisha, mwanafunzi anaona **COMPLETED** na **Download Clearance Transcript** kwenye Dashboard.
+
+**Ada ya kuanza clearance inawahusu ambao bado hawajaanza clearance ya cycle husika.** Walioanza tayari na waliomaliza wanaendelea kutumia clearance na transcript zao bila kuombwa ada hii. Mwanafunzi halipi ada hii mara mbili katika cycle moja. Admin anafungua kipindi cha clearance; Finance and Accounting ndiye anasimamia ada, control number na uthibitisho wa malipo.
 
 Ili kufungua akaunti mbili kwa wakati mmoja, tumia browser tofauti au dirisha la Incognito/Private kwa akaunti ya pili. Tabs za kawaida katika browser moja zinatumia login ileile.
 
@@ -87,7 +91,13 @@ Officer wa ofisi husika anaweka sababu na maelekezo ya marekebisho. Mwanafunzi a
 
 ### Finance na receipt
 
-Finance inaweka **control number** ya tarakimu 6–30 na kuchagua **Reject** ili kuipeleka kwa mwanafunzi. Mwanafunzi anaona control number na kupakia receipt moja ya PDF/JPG/PNG, hadi 5 MB. Finance inahakiki receipt kabla ya **Approve**. Kupakia receipt peke yake hakukamilishi clearance; approvals zote 11 zinahitajika.
+Katika hatua ya 11, Finance anakagua **madeni mengine**, tofauti na ada ya kuanza clearance. Bila deni jingine, anachagua **Approve — no other debt** bila kuomba malipo mengine. Deni jingine likiwepo, Finance anaweka **control number** ya tarakimu 6–30 na kuchagua **Send control number**. Hatua ya Finance inabaki **PENDING**, ikisubiri malipo. Mwanafunzi analipa kwa namba hiyo na kupakia receipt moja ya PDF/JPG/PNG, hadi 5 MB. Finance anafungua receipt, anahakiki malipo, kisha anachagua **Approve**. **Update control number** inahitaji receipt mpya na inahifadhi history. Finance hana kitufe cha Reject. Kupakia receipt peke yake hakukamilishi clearance; approvals zote 11 zinahitajika.
+
+Receipt ikihitaji kusahihishwa kabla ya Finance ku-approve, mwanafunzi anaweza kufungua **View or replace payment receipt** na kuchagua **Replace payment receipt**. Receipt ya zamani inabaki kwenye history, na Finance inahakiki receipt mpya.
+
+### Session kuisha
+
+Mfumo unaonyesha onyo dakika 1 kabla ya session kuisha. Bonyeza **Continue session / Endelea** ili kuendelea na form yako. Session inaisha baada ya dakika 30 bila shughuli, au saa 8 tangu login; ukomo wa saa 8 unahitaji kuingia tena.
 
 ## 6. Ukikwama
 
@@ -96,8 +106,10 @@ Finance inaweka **control number** ya tarakimu 6–30 na kuchagua **Reject** ili
 | Invalid username or password | Nakili registration number yote; hakikisha password ina herufi kubwa kama kwenye jedwali, au tumia password uliyobadilisha. |
 | Clearance is currently closed | Ingia kama admin na ufungue **Clearance Period** kwa academic cycle unayotumia. |
 | Continue Clearance inaonekana badala ya Start Clearance | Ombi la cycle hiyo tayari lipo. Endelea kupitia **My Clearance**. |
+| Start Clearance haijafunguka | Fungua **Clearance Fee**, omba control number na pakia receipt. Subiri Finance aidhinishe malipo. |
+| Finance haoni ombi la ada kwenye Pending Clearance | Fungua **Clearance Fee Payments**; maombi haya yapo kabla ya clearance kuanza. |
 | Officer haoni mwanafunzi | Hakikisha mwanafunzi ameanza clearance na unatumia akaunti ya ofisi husika. Review iliyokwisha kuidhinishwa huondoka kwenye pending tasks. |
-| Transcript haionekani | Angalia **My Clearance**; ofisi zote 11 lazima ziwe APPROVED na Finance iwe imehakiki receipt. |
+| Transcript haionekani | Angalia **My Clearance**; ofisi zote 11 lazima ziwe APPROVED, na Finance awe amethibitisha hakuna deni jingine au amehakiki receipt ya deni hilo. |
 
 ## Verification kwa developer
 

@@ -87,7 +87,7 @@ function student_evidence_form(PDO $pdo, array $stage, array $errors=[]): void {
     <?php
 }
 
-function finance_payment_form(array $stage, array $errors = []): void {
+function finance_payment_form(array $stage, array $errors = [], bool $allowReceiptReplacement = false): void {
     $payment = finance_payment_details($stage);
     $number = (string)($payment['control_number'] ?? '');
     if ($number === '') {
@@ -100,8 +100,8 @@ function finance_payment_form(array $stage, array $errors = []): void {
         <h3>Finance payment</h3>
         <p>Control number / Namba ya malipo: <strong><?= e($number) ?></strong></p>
         <?php form_error('control_number', $errors); ?>
-        <?php if ($stage['status'] === 'REJECTED'): ?>
-            <p>Pay using this control number, then upload your payment receipt. Finance will verify the receipt and approve or reject it.</p>
+        <?php if (in_array($stage['status'], ['PENDING','IN_REVIEW','REJECTED'], true) && (($payment['payment_status'] ?? '') === 'AWAITING_PAYMENT' || ($allowReceiptReplacement && ($payment['payment_status'] ?? '') === 'AWAITING_REVIEW'))): ?>
+            <p><?= ($payment['payment_status'] ?? '') === 'AWAITING_REVIEW' ? 'Your receipt is awaiting Finance review. If you need to correct it, upload a replacement below. Previous receipts stay in the history.' : 'Pay using this control number, then upload your payment receipt. Finance will verify the payment before approving.' ?></p>
             <form method="post" action="<?= e(url('student/resubmit.php?stage='.$stageId)) ?>" enctype="multipart/form-data">
                 <?php csrf_field(); ?>
                 <input type="hidden" name="stage_id" value="<?= $stageId ?>">
@@ -112,12 +112,15 @@ function finance_payment_form(array $stage, array $errors = []): void {
                 <input id="receipt-<?= $stageId ?>" type="file" name="evidence[]" accept=".pdf,.jpg,.jpeg,.png" required aria-describedby="receipt-help-<?= $stageId ?>">
                 <p id="receipt-help-<?= $stageId ?>" class="muted">One PDF, JPG or PNG file, up to 5 MB.</p>
                 <?php form_error('evidence', $errors); ?>
-                <button class="btn primary" type="submit"><?= icon('upload') ?> Upload payment receipt</button>
+                <button class="btn primary" type="submit"><?= icon('upload') ?> <?= ($payment['payment_status'] ?? '') === 'AWAITING_REVIEW' ? 'Replace payment receipt' : 'Upload payment receipt' ?></button>
             </form>
         <?php elseif ($stage['status'] === 'APPROVED'): ?>
             <p class="alert success">Finance approved your payment receipt.</p>
         <?php else: ?>
             <p class="alert info">Your payment receipt has been submitted. Awaiting Finance review.</p>
+            <?php if (($payment['payment_status'] ?? '') === 'AWAITING_REVIEW'): ?>
+                <a href="<?= e(url('student/resubmit.php?stage='.$stageId)) ?>">View or replace payment receipt</a>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
     <?php

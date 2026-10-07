@@ -141,6 +141,88 @@ async function navigationChecks() {
     assert(await evaluate('(() => {const table=document.querySelector(".table-wrap"); table.scrollLeft=120; return table.scrollLeft > 0;})()'), 'Table must scroll independently on a phone.');
     console.log('PASS: drawer focus, Escape/backdrop close, scroll lock, tablet breakpoint, resize and table scrolling');
 }
+async function sessionWarningChecks() {
+    await login(fixture.new_student);
+    await viewport(390,844);
+    await navigate('/auth/change_password.php');
+    await evaluate('document.getElementById("current_password").value="Unsaved form value"');
+    const cookies=await send('Network.getCookies',{urls:[origin]});
+    const session=cookies.cookies.find(cookie=>cookie.name==='PHPSESSID');
+    assert(session && /^[a-zA-Z0-9,-]+$/.test(session.value),'Authenticated test session missing.');
+    const sessionFile=path.join(fixture.session_directory,'sess_'+session.value);
+    function age(values) {
+        let data=fs.readFileSync(sessionFile,'utf8');
+        for(const [key,value] of Object.entries(values)) {
+            const expression=new RegExp(key+'\\|i:[0-9]+;');
+            assert(expression.test(data),'Session timestamp missing: '+key);
+            data=data.replace(expression,key+'|i:'+value+';');
+        }
+        fs.writeFileSync(sessionFile,data);
+    }
+    async function waitFor(expression,label) {
+        for(let attempt=0;attempt<60;attempt++) {
+            if(await evaluate(expression)) return;
+            await pause(100);
+        }
+        throw new Error('Timed out: '+label);
+    }
+    const state=await evaluate('fetch(document.getElementById("sessionWarning").dataset.statusUrl).then(r=>r.json())');
+    age({last_activity_at:state.server_time-120});
+    // Advance only the browser's monotonic clock to exercise the minute heartbeat
+    // without a real-minute wait; the server still uses its real clock and limits.
+    await evaluate('window.sessionTestClock=performance.now.bind(performance);Object.defineProperty(performance,"now",{value:()=>window.sessionTestClock()+61000,configurable:true})');
+    await key('Tab');
+    await waitFor('fetch(document.getElementById("sessionWarning").dataset.statusUrl).then(r=>r.json()).then(s=>s.idle_expires_at>s.server_time+1700)','Trusted input heartbeat');
+    await evaluate('delete performance.now;delete window.sessionTestClock');
+    age({last_activity_at:state.server_time-1750});
+    await evaluate('window.dispatchEvent(new Event("focus"))');
+    await waitFor('document.getElementById("sessionWarning").open','Idle warning');
+    assert.equal(await evaluate('document.getElementById("sessionContinue").hidden'),false,'Idle warning must offer continuation.');
+    await key('Escape');
+    assert.equal(await evaluate('document.getElementById("sessionWarning").open'),true,'Escape dismissed the timeout warning.');
+    for(const width of [320,390,768,1440]) {
+        await viewport(width,844);
+        await evaluate('document.documentElement.style.setProperty("--text-scale","2")');
+        const layout=await evaluate('new Promise(resolve=>requestAnimationFrame(()=>resolve((()=>{const d=document.getElementById("sessionWarning"),b=d.getBoundingClientRect();return {left:b.left,right:b.right,width:innerWidth,overflow:d.scrollWidth>d.clientWidth+1};})())))');
+        assert(layout.left>=-1 && layout.right<=layout.width+1 && !layout.overflow,'Timeout warning overflows at '+width+'px / 200% text.');
+    }
+    await viewport(390,844);
+    await evaluate('document.documentElement.style.setProperty("--text-scale","1")');
+    await screenshot('session-warning-mobile');
+    const beforeFailedContinue=await evaluate('fetch(document.getElementById("sessionWarning").dataset.statusUrl).then(r=>r.json())');
+    await send('Network.setBlockedURLs',{urls:[origin+'/auth/session.php*']});
+    await evaluate('document.getElementById("sessionContinue").click()');
+    await waitFor('document.getElementById("sessionWarningError").textContent.length>0 && !document.getElementById("sessionContinue").disabled','Failed continuation feedback');
+    assert.equal(await evaluate('document.getElementById("sessionWarning").open'),true,'A failed request silently dismissed the warning.');
+    await send('Network.setBlockedURLs',{urls:[]});
+    const afterFailedContinue=await evaluate('fetch(document.getElementById("sessionWarning").dataset.statusUrl).then(r=>r.json())');
+    assert.equal(afterFailedContinue.idle_expires_at,beforeFailedContinue.idle_expires_at,'Failed continuation changed the server deadline.');
+    await evaluate('document.getElementById("sessionContinue").click()');
+    await waitFor('!document.getElementById("sessionWarning").open','Session continuation');
+    assert.equal(await evaluate('document.getElementById("current_password").value'),'Unsaved form value','Continuation discarded the current form.');
+    const renewed=await evaluate('fetch(document.getElementById("sessionWarning").dataset.statusUrl).then(r=>r.json())');
+    assert(renewed.idle_expires_at>state.server_time+1700,'Continue did not renew the server deadline.');
+    assert.equal(renewed.absolute_expires_at,state.absolute_expires_at,'Continue extended the absolute deadline.');
+    age({session_started_at:renewed.server_time-28800+40,last_activity_at:renewed.server_time});
+    await evaluate('window.dispatchEvent(new Event("focus"))');
+    await waitFor('document.getElementById("sessionWarning").open && document.getElementById("sessionContinue").hidden','Absolute timeout warning');
+    assert.match(await evaluate('document.getElementById("sessionWarningMessage").textContent'),/8-hour/,'Absolute warning did not explain the lifetime limit.');
+    age({session_started_at:renewed.server_time-28801});
+    await evaluate('window.dispatchEvent(new Event("focus"))');
+    await waitFor('location.pathname==="/auth/login.php"','Absolute logout');
+    assert.match(await evaluate('document.body.innerText'),/8-hour limit/,'Logout reason missing.');
+    await login(fixture.new_student);
+    await navigate('/auth/change_password.php');
+    const secondCookies=await send('Network.getCookies',{urls:[origin]});
+    const secondId=secondCookies.cookies.find(cookie=>cookie.name==='PHPSESSID').value;
+    const secondFile=path.join(fixture.session_directory,'sess_'+secondId);
+    const now=await evaluate('fetch(document.getElementById("sessionWarning").dataset.statusUrl).then(r=>r.json()).then(s=>s.server_time)');
+    fs.writeFileSync(secondFile,fs.readFileSync(secondFile,'utf8').replace(/last_activity_at\|i:[0-9]+;/,'last_activity_at|i:'+(now-1801)+';'));
+    await evaluate('window.dispatchEvent(new Event("focus"))');
+    await waitFor('location.pathname==="/auth/login.php"','Idle logout');
+    assert.match(await evaluate('document.body.innerText'),/30 minutes without activity/,'Idle logout reason missing.');
+    console.log('PASS: trusted activity heartbeat, session warning, failed continuation, Escape protection, 320–1440px/200% text, continuation preserves forms, absolute and idle logout');
+}
 (async () => {
     try {
         browser = spawn(edge, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
@@ -155,7 +237,15 @@ async function navigationChecks() {
             if (spawnError) throw spawnError;
             if (browser.exitCode !== null) throw new Error('Headless browser exited: '+stderr);
             const active = path.join(profile, 'DevToolsActivePort');
-            if (fs.existsSync(active)) {port = fs.readFileSync(active, 'utf8').split('\n')[0]; break;}
+            if (fs.existsSync(active)) {
+                try {
+                    const candidate=fs.readFileSync(active,'utf8').split('\n')[0];
+                    if (/^\d+$/.test(candidate)) {port=candidate;break;}
+                } catch(error) {
+                    // Edge briefly locks this file while publishing its port on Windows.
+                    if (!['EBUSY','ENOENT'].includes(error.code)) throw error;
+                }
+            }
             await pause(100);
         }
         assert(port, 'Headless browser did not start: '+stderr);
@@ -182,13 +272,14 @@ async function navigationChecks() {
             {account: null, routes: ['/', '/auth/login.php', '/auth/forgot.php', '/auth/reset.php', '/certificates/verify.php', '/transcripts/verify.php?token='+fixture.transcript_token]},
             {account: fixture.admin, routes: ['/admin/dashboard.php', '/admin/users.php', '/admin/programmes.php', '/admin/offices.php', '/admin/departments.php', '/admin/workflow.php', '/admin/clearances.php', '/admin/clearance_period.php', '/admin/transcripts.php', '/admin/recovery.php', '/admin/import.php', '/admin/reports.php', '/auth/change_password.php']},
             {account: fixture.student, routes: ['/student/dashboard.php', '/student/status.php', '/student/resubmit.php?stage='+fixture.rejected_stage, '/student/profile.php', '/student/notifications.php']},
-            {account: fixture.new_student, routes: ['/student/start.php', '/student/dashboard.php', '/student/status.php']},
+            {account: fixture.new_student, routes: ['/student/start.php', '/student/clearance_fee.php', '/student/dashboard.php', '/student/status.php']},
             {account: fixture.officer, routes: ['/officer/dashboard.php', '/officer/review.php?stage='+fixture.review_stage]},
             {account: fixture.finance_student, routes: ['/student/dashboard.php','/student/status.php','/student/resubmit.php?stage='+fixture.finance_stage]},
-            {account: fixture.finance_officer, routes: ['/officer/dashboard.php','/officer/review.php?stage='+fixture.finance_stage]},
+            {account: fixture.finance_officer, routes: ['/officer/dashboard.php','/officer/clearance_fees.php','/officer/clearance_fee_review.php?id='+fixture.entry_fee,'/officer/review.php?stage='+fixture.finance_stage]},
             {account: fixture.completed, routes: ['/student/dashboard.php', '/student/status.php']},
         ];
-        for (const group of groups) {
+        const selectedGroups=process.env.IRDP_SESSION_ONLY==='1'?[{account:null,routes:['/']}]:groups;
+        for (const group of selectedGroups) {
             if (group.account) await login(group.account);
             for (const route of group.routes) {
                 for (const width of widths) await checkLayout(route, width, 1);
@@ -197,6 +288,7 @@ async function navigationChecks() {
             console.log('PASS: '+(group.account?.username || 'Public')+' responsive layouts');
             if (group.account === fixture.admin) await navigationChecks();
         }
+        await sessionWarningChecks();
         console.log('PASS: '+checks+' browser layouts from 320–1440px, 100%/200% text, '+tableChecks+' scrollable tables');
     } catch (error) {
         console.error('FAIL: '+error.stack);

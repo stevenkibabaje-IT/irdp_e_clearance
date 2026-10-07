@@ -17,6 +17,13 @@ function finance_payment_details(array $stage): array
     return is_array($details) ? $details : [];
 }
 
+function finance_has_payment_request(array $details): bool
+{
+    return array_key_exists('control_number',$details)
+        || (float)($details['debt']??0) > (float)($details['recovered']??0)
+        || ($details['decision']??'')==='NOT_CLEARED';
+}
+
 function finance_details_clear(array $details): bool
 {
     // Keep already approved records from the previous finance format usable.
