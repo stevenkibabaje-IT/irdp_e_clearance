@@ -3,6 +3,7 @@
 Mwanafunzi mwenye email kwenye akaunti yake anapata notification ndani ya mfumo na ujumbe wa email kwa matukio haya:
 
 - Kipindi cha clearance kufunguliwa.
+- Mwanafunzi kuanza clearance; notification moja hutumwa kwa mwanafunzi na kila mhusika anayepokea taarifa ya ombi.
 - Finance kutoa control number na kuidhinisha ada ya kuanza clearance.
 - Ofisi kuidhinisha au kukataa hatua ya clearance.
 - Finance kuomba malipo ya deni jingine.
@@ -22,15 +23,18 @@ Usitume password kwenye chat au kuiweka kwenye README. `mail.local.php` haijumui
 
 Google inaweza kuzuia App Passwords kutokana na sera ya akaunti. Fuata [maelekezo rasmi ya Google](https://support.google.com/mail/answer/185833) ikiwa chaguo hilo halionekani. Usizime uthibitishaji wa certificate ya SMTP ili kufanya email ifanye kazi.
 
-## Kujaribu email ya Andrea
+## Kujaribu notifications kwa akaunti zenye email
 
 1. Washa Apache na MySQL kwenye XAMPP.
-2. Ingia kama admin na fungua **Email Notifications**.
-3. Chagua **ANDREA RENATUS JUMA — IRDP/ODICT/MA26/0002** kwenye sehemu ya mwanafunzi.
-4. Bonyeza **Send test email**. Ujumbe unatumiwa kwa `andrearenatusjuma25@gmail.com`.
-5. Angalia **Recent delivery history** na inbox ya Andrea, pamoja na Spam. Hali ya `SENT` ina maana server ya SMTP imekubali ujumbe; haithibitishi kuwa umeonekana kwenye inbox.
+2. Tumia akaunti kwenye jedwali **Accounts with email** la [mwongozo wa demo](README_DEMO_ACCOUNTS.md). Wote wana email iliyohifadhiwa.
+3. Admin afungue kipindi cha clearance. Mwanafunzi aombe control number ya ada, alipe na awasilishe receipt; Finance ihakiki na kuidhinisha malipo.
+4. Mwanafunzi abonyeze **Start Clearance**. Notification moja ya kuanza inaonekana ndani ya mfumo, na email yake hutumwa na worker.
+5. Officer afanye **Approve** au **Reject** kwa stage yake. Notification na email vitaonyesha ofisi, stage, academic cycle, uamuzi, maelezo ya ofisi na maelekezo husika. Rejection yenye deni huonyesha kiasi na vifaa vinavyokosekana; Finance huonyesha control number ikihitajika.
+6. Mwanafunzi aangalie **Notifications** ndani ya mfumo na Inbox au Spam ya email yake. Ofisi zote zikikamilisha approvals, anapata taarifa ya kukamilika na maelekezo ya kupakua transcript.
 
-Ukiona `SMTP authentication failed`, hakiki email ya mtumaji na App Password. Ukiona `SMTP connection failed`, hakiki network na port. Ujumbe ulioshindwa unatumiwa tena kwa vipindi vinavyoongezeka, hadi majaribio matano; admin anaweza kubonyeza **Retry email** baada ya kusahihisha tatizo. **Send pending emails** hutuma hadi ujumbe watatu kwa ombi la admin.
+Admin hahitaji ukurasa wa kutuma email: matukio ya clearance yanatengeneza notifications na worker hutuma email moja kwa moja. URL ya zamani ya Email Notifications inarudisha admin kwenye dashboard bila kufanya actions.
+
+Kwa developer, `SENT` kwenye `email_outbox` ina maana server ya SMTP imekubali ujumbe; haithibitishi kuwa umeonekana kwenye inbox. Ukiona `SMTP authentication failed`, hakiki email ya mtumaji na App Password. Ukiona `SMTP connection failed`, hakiki network na port. Ujumbe ulioshindwa unatumiwa tena kwa vipindi vinavyoongezeka, hadi majaribio matano; rekodi zilizofikia `FAILED` zinahitaji developer kurekebisha tatizo na kuzirudisha kwenye foleni.
 
 ## Utumaji wa moja kwa moja
 
@@ -62,6 +66,6 @@ Worker huchakata hadi email 20 kwa mzunguko na huzuia workers wawili kutuma fole
 C:\xampp\php\php.exe tests\email_notifications_test.php
 ```
 
-Test hutumia database tofauti na SMTP ya ndani inayopokea ujumbe bila kuwasiliana na Gmail. Inahakiki rollback, kutorudia ujumbe uliotumwa, retry, usiri wa errors, mabadiliko ya email, permissions na profile kupitia HTTP. Database ya majaribio huondolewa baada ya kumaliza.
+Test hutumia database tofauti na SMTP ya ndani inayopokea ujumbe bila kuwasiliana na Gmail. Inahakiki rollback, kutorudia ujumbe uliotumwa, retry, usiri wa errors, ujumbe wa stage, mabadiliko ya email, profile kupitia HTTP na kuondolewa kwa controls za email kwenye admin. Database ya majaribio huondolewa baada ya kumaliza.
 
 SMTP hutumia [PHPMailer 7.1.1](https://github.com/PHPMailer/PHPMailer/releases/tag/v7.1.1), iliyohifadhiwa kwenye `includes/vendor/phpmailer` pamoja na license yake. Password recovery iliyopo inaendelea kutumia utaratibu wake wa uthibitishaji wa identity; email notifications hazibadilishi masharti yake.

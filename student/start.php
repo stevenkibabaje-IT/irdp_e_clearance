@@ -68,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
 
         $startedAt = date('Y-m-d H:i:s');
+        $notificationRecipients = [];
         foreach ($steps as $step) {
             $departmentId = (int) $step['step_number'] === 7 ? $studentDepartmentId : 0;
             $officerId = find_office_reviewer($pdo, (int) $step['office_id'], $departmentId);
@@ -87,7 +88,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stageId = (int)$pdo->lastInsertId();
             ensure_review_cycle($pdo, $stageId);
             route_clearance_stage($pdo, $requestId, $stageId, (int) $u['id']);
-            notify_stage($pdo, stage_context($pdo, $stageId), 'Clearance started', 'Your office review is ready. Each office can review independently.');
+            foreach (stage_recipients($pdo, stage_context($pdo, $stageId)) as $recipientId) {
+                $notificationRecipients[$recipientId] = $recipientId;
+            }
+        }
+
+        foreach ($notificationRecipients as $recipientId) {
+            $message = $recipientId === (int)$u['id']
+                ? 'Your clearance for '.$academicYear.' has started. All 11 offices can now review independently. Follow progress under My Clearance.'
+                : 'Clearance for '.$u['full_name'].' ('.$u['username'].') has started for '.$academicYear.'. Assigned office reviews are ready and can proceed independently.';
+            notify($pdo, $recipientId, 'Clearance started', $message);
         }
 
         audit(

@@ -406,7 +406,7 @@ try{
     [$code,$queue]=http_call('/officer/dashboard.php',[],$officerCookie);check($code===200&&str_contains($queue,'Resubmitted: review student evidence'),'Responsible office did not see resubmission.');
     [$code,$review]=http_call('/officer/review.php?stage='.$stage,[],$officerCookie);check($code===200&&str_contains($review,'Student resubmission')&&str_contains($review,'Fictional receipt attached')&&str_contains($review,'receipt.pdf')&&str_contains($review,'value="APPROVED_EVIDENCE"'),'Office did not receive the student response and evidence approval action.');
     [$code,$body]=http_call('/files/evidence.php?id='.$file['id'],[],$officerCookie);check($code===200&&str_starts_with($body,'%PDF-'),'Responsible office cannot open evidence.');
-    $notification=$pdo->prepare('SELECT COUNT(*) FROM notifications WHERE user_id=? AND title="Clearance stage resubmitted"');$notification->execute([$primary]);check((int)$notification->fetchColumn()>0,'Responsible office was not notified.');
+    $notification=$pdo->prepare('SELECT COUNT(*) FROM notifications WHERE user_id=? AND title LIKE "Clearance stage resubmitted%"');$notification->execute([$primary]);check((int)$notification->fetchColumn()>0,'Responsible office was not notified.');
     // The approval form still contains the old 500,000 finding. Evidence
     // acceptance resolves this office without changing another office's pending review.
     [$code,$body]=http_call('/officer/review.php?stage='.$stage,['csrf_token'=>token_from($review),'stage_id'=>(string)$stage,'review_cycle'=>(string)stage_context($pdo,$stage)['review_cycle'],'action'=>'APPROVED_EVIDENCE','comments'=>'Missing return receipt','corrective_instructions'=>'Attach the returned-item receipt','amount'=>'500000'],$officerCookie,true);check($code===302&&stage_context($pdo,$stage)['status']==='APPROVED'&&stage_context($pdo,$nextStage)['status']==='PENDING','Office evidence approval failed or changed another office review.');
@@ -561,13 +561,13 @@ try{
     $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status) VALUES (?,?,?,?,?,"PENDING")')->execute([$assignedRequest,$nextWorkflow['id'],$nextWorkflow['office_id'],$backup,$backup]);$assignedNext=(int)$pdo->lastInsertId();
     [$code,$adminDashboard]=http_call('/admin/dashboard.php',[],$adminCookie);
     check($code===200,'Admin dashboard unavailable.');
-    foreach(['admin/emergency.php','admin/continuity.php','admin/settings.php','supervisor/dashboard.php','admin/academic_results.php','Academic Results','Escalations','Emergency','Settings and Authority'] as $removed) {
+    foreach(['admin/emergency.php','admin/continuity.php','admin/settings.php','admin/email_notifications.php','Email Notifications','supervisor/dashboard.php','admin/academic_results.php','Academic Results','Escalations','Emergency','Settings and Authority'] as $removed) {
         check(!str_contains($adminDashboard,$removed),'Admin dashboard still exposes '.$removed);
     }
     $snapshot=stage_context($pdo,$assignedStage);
     $settingsBefore=$pdo->query('SELECT * FROM app_settings ORDER BY name')->fetchAll();
     $officeAccessBefore=$pdo->query('SELECT * FROM user_offices ORDER BY user_id,office_id')->fetchAll();
-    foreach(['/admin/emergency.php','/admin/continuity.php','/admin/settings.php','/supervisor/dashboard.php','/admin/academic_results.php'] as $retiredPath) {
+    foreach(['/admin/emergency.php','/admin/continuity.php','/admin/settings.php','/admin/email_notifications.php','/supervisor/dashboard.php','/admin/academic_results.php'] as $retiredPath) {
         [$code]=http_call($retiredPath,[],$adminCookie);check($code===302,'Retired feature page is still active: '.$retiredPath);
         [$code]=http_call($retiredPath,['csrf_token'=>token_from($adminDashboard),'stage_id'=>(string)$assignedStage,'mode'=>'assign','reviewer_id'=>(string)$backup,'reason'=>'Old action','action'=>'grant','office_id'=>(string)$office],$adminCookie,true);
         check($code===302,'Old feature POST was not retired: '.$retiredPath);
@@ -759,11 +759,21 @@ try{
     [$code,$startForm]=http_call('/student/start.php',[],$startCookie);check($code===200&&str_contains($startForm,'Entry fee approved'),'Approved fee did not unlock the start form.');
     $requestsBefore=(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn();
     $pdo->prepare('UPDATE users SET active=0 WHERE id=?')->execute([$ids['FIN001']]);
+    $startStudentUser=$ids['IRDP/BTCCD/MA25/0003'];
+    $pdo->prepare('UPDATE users SET email=? WHERE id=?')->execute(['start-notification@example.test',$startStudentUser]);
+    $startNoticeCount=(int)$pdo->query('SELECT COUNT(*) FROM notifications WHERE user_id='.$startStudentUser.' AND title="Clearance started"')->fetchColumn();
+    $startEmailCount=(int)$pdo->query('SELECT COUNT(*) FROM email_outbox q JOIN notifications n ON n.id=q.notification_id WHERE n.user_id='.$startStudentUser.' AND n.title="Clearance started"')->fetchColumn();
     [$code,$missingReviewer]=http_call('/student/start.php',['csrf_token'=>token_from($startForm),'academic_year'=>$cycle],$startCookie,true);
     check($code===200&&str_contains($missingReviewer,'No active officer')&&(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn()===$requestsBefore,'Missing officer left a partial clearance request.');
+    check((int)$pdo->query('SELECT COUNT(*) FROM notifications WHERE user_id='.$startStudentUser.' AND title="Clearance started"')->fetchColumn()===$startNoticeCount,'Failed start sent a student notification.');
+    check((int)$pdo->query('SELECT COUNT(*) FROM email_outbox q JOIN notifications n ON n.id=q.notification_id WHERE n.user_id='.$startStudentUser.' AND n.title="Clearance started"')->fetchColumn()===$startEmailCount,'Failed start queued a student email.');
     $pdo->prepare('UPDATE users SET active=1 WHERE id=?')->execute([$ids['FIN001']]);
     [$code]=http_call('/student/start.php',['csrf_token'=>token_from($missingReviewer),'academic_year'=>$cycle],$startCookie,true);
     check($code===302,'Normal student start failed after feature removal.');
+    check((int)$pdo->query('SELECT COUNT(*) FROM notifications WHERE user_id='.$startStudentUser.' AND title="Clearance started"')->fetchColumn()===$startNoticeCount+1,'Start should create exactly one student notification.');
+    check((int)$pdo->query('SELECT COUNT(*) FROM email_outbox q JOIN notifications n ON n.id=q.notification_id WHERE n.user_id='.$startStudentUser.' AND n.title="Clearance started"')->fetchColumn()===$startEmailCount+1,'Start should queue exactly one student email.');
+    [$code]=http_call('/student/start.php',['csrf_token'=>token_from($missingReviewer),'academic_year'=>$cycle],$startCookie,true);
+    check($code===302&&(int)$pdo->query('SELECT COUNT(*) FROM notifications WHERE user_id='.$startStudentUser.' AND title="Clearance started"')->fetchColumn()===$startNoticeCount+1,'Repeated start created another student notification.');
     $started=get_clearance_for_cycle($pdo,(int)$pdo->query('SELECT id FROM students WHERE user_id='.$ids['IRDP/BTCCD/MA25/0003'])->fetchColumn(),$cycle);
     $startedStages=get_clearance_stages($pdo,(int)$started['id']);
     check(count($startedStages)===11&&count(array_filter($startedStages,fn($row)=>$row['status']==='PENDING'&&$row['started_at']!==null&&$row['actionable_at']!==null))===11,'Student start did not open all eleven office reviews.');

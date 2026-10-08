@@ -26,7 +26,7 @@ function stage_context(PDO $pdo, int $stageId, bool $lock = false): array {
     $s=$pdo->prepare('SELECT * FROM clearance_stages WHERE id=?'.($lock?' FOR UPDATE':''));
     $s->execute([$stageId]);
     $stage=$s->fetch();
-    $s=$pdo->prepare('SELECT cr.status AS request_status, cr.student_id, s.user_id AS student_user_id,s.department_id, ws.step_number, ws.title FROM clearance_requests cr INNER JOIN students s ON s.id=cr.student_id INNER JOIN workflow_steps ws ON ws.id=? WHERE cr.id=?');
+    $s=$pdo->prepare('SELECT cr.status AS request_status, cr.student_id, cr.academic_year, s.registration_number, s.user_id AS student_user_id,s.department_id, ws.step_number, ws.title, o.name AS office_name FROM clearance_requests cr INNER JOIN students s ON s.id=cr.student_id INNER JOIN workflow_steps ws ON ws.id=? INNER JOIN offices o ON o.id=ws.office_id WHERE cr.id=?');
     $s->execute([$stage['workflow_step_id'],$request]);
     return array_merge($stage,$s->fetch());
 }
@@ -47,9 +47,49 @@ function stage_recipients(PDO $pdo, array $stage): array {
     return array_unique($ids);
 }
 function notify_stage(PDO $pdo, array $stage, string $title, string $message): void {
+    $office = $stage['office_name'] ?? $stage['title'];
+    if ($title !== 'Clearance completed') {
+        $title .= ' — '.$office.' (Stage '.$stage['step_number'].')';
+    }
+    $context = 'Ofisi: '.$office."\nStage: ".$stage['step_number'].' / 11';
+    if (!empty($stage['registration_number'])) { $context .= "\nRegistration number: ".$stage['registration_number']; }
+    if (!empty($stage['academic_year'])) { $context .= "\nAcademic cycle: ".$stage['academic_year']; }
+    $message = $context."\n\n".$message;
     foreach(stage_recipients($pdo,$stage) as $id) {
         notify($pdo,$id,$title,$message);
     }
+}
+
+/** Keep each event's decision, liabilities and office instructions in its notification. */
+function stage_decision_message(array $stage, string $action, array $details, string $comments, string $instructions): string {
+    $office = $stage['office_name'] ?? $stage['title'];
+    $message = match ($action) {
+        'APPROVED' => 'Uamuzi: APPROVED' . "\nOfisi ya ".$office.' imeidhinisha hatua hii ya clearance yako.',
+        'REJECTED' => 'Uamuzi: REJECTED' . "\nOfisi ya ".$office.' imekataa hatua hii. Rekebisha yaliyoelekezwa kabla ya kutuma tena.',
+        'PAYMENT_REQUESTED' => 'Uamuzi: PAYMENT REQUIRED' . "\nFinance imeomba malipo ya deni jingine kabla ya kuidhinisha hatua yake.",
+        'COMPLETED' => 'Hali: COMPLETED' . "\nOfisi ya ".$office.' imeidhinisha hatua ya mwisho iliyobaki. Ofisi zote 11 zimeidhinisha clearance yako.',
+        default => throw new LogicException('Unknown stage notification decision.'),
+    };
+    if ($comments !== '') { $message .= "\n\nMaelezo ya ofisi: ".$comments; }
+    foreach (['amount'=>'Deni','so_has_to_pay'=>'Kiasi cha kulipa kwa malazi','nothing_amount'=>'Deni jingine la malazi'] as $key=>$label) {
+        if (isset($details[$key]) && (float)$details[$key] > 0) { $message .= "\n".$label.': TSh '.number_format((float)$details[$key],2); }
+    }
+    $missing = [];
+    foreach (['key'=>'Key','mattress'=>'Mattress','curtains'=>'Curtains','broom'=>'Broom','bucket'=>'Bucket'] as $key=>$label) {
+        if (isset($details[$key]) && $details[$key] !== 'AVAILABLE') { $missing[] = $label; }
+    }
+    if ($missing) { $message .= "\nVifaa vinavyokosekana: ".implode(', ',$missing); }
+    if (!empty($details['control_number'])) { $message .= "\nControl number: ".$details['control_number']; }
+    if (($details['finance_mode'] ?? '') === 'NO_OTHER_DEBT') { $message .= "\nFinance imethibitisha huna deni jingine."; }
+    if (($details['payment_status'] ?? '') === 'APPROVED') { $message .= "\nReceipt yako imehakikiwa na malipo yameidhinishwa."; }
+    if ($instructions !== '') { $message .= "\n\nMaelekezo: ".$instructions; }
+    $message .= "\n\nHatua inayofuata: ".match ($action) {
+        'REJECTED' => 'Fungua My Clearance, rekebisha tatizo, kisha tumia Submit evidence to office kutuma maelezo na ushahidi kwa ofisi hii.',
+        'PAYMENT_REQUESTED' => 'Lipa kwa control number iliyotolewa, kisha pakia receipt kwenye My Clearance ili Finance ihakiki.',
+        'COMPLETED' => 'Fungua Dashboard na uchague Download Clearance Transcript.',
+        default => 'Fungua My Clearance kufuatilia maamuzi ya ofisi zilizobaki.',
+    };
+    return $message;
 }
 function ensure_review_cycle(PDO $pdo, int $stageId): void {
     $pdo->prepare('INSERT IGNORE INTO review_cycles(stage_id,cycle_number,opened_at) SELECT id,review_cycle,actionable_at FROM clearance_stages WHERE id=?')->execute([$stageId]);
@@ -103,8 +143,8 @@ function resubmit_stage(PDO $pdo, int $stageId, int $studentUser, string $respon
         route_clearance_stage($pdo,(int)$stage['clearance_request_id'],$stageId,$studentUser);
         $stage=stage_context($pdo,$stageId);
         notify_stage($pdo,$stage,$isFinance ? 'Payment receipt submitted' : 'Clearance stage resubmitted',
-            $isFinance ? 'The student uploaded a payment receipt for control number '.$issuedNumber.'. Finance must verify it before approval.'
-                : 'Student response and evidence are available for stage '.$stage['step_number'].', review cycle '.$cycle.'.');
+            $isFinance ? 'Receipt ya malipo kwa control number '.$issuedNumber.' imewasilishwa. Finance itahakiki malipo kabla ya kuidhinisha hatua hii.'
+                : 'Marekebisho na ushahidi vimewasilishwa kwa ofisi hii kwa review cycle '.$cycle.'. Ofisi itahakiki kabla ya kutoa uamuzi mpya.');
         audit($pdo,'STAGE_RESUBMITTED',$studentUser,(int)$stage['clearance_request_id'],'Stage '.$stageId.' cycle '.$cycle.'; evidence files '.count($stored));
         $pdo->commit();
     } catch(Throwable $e) {
@@ -275,17 +315,17 @@ function process_stage_decision(PDO $pdo,int $stageId,int $reviewer,array $input
         if (!$paymentRequested) { $pdo->prepare('UPDATE review_cycles SET closed_at=NOW() WHERE stage_id=? AND cycle_number=?')->execute([$stageId,$cycle]); }
         refresh_clearance_request_status($pdo,(int)$stage['clearance_request_id']);
         if ($paymentRequested) {
-            notify_stage($pdo,$stage,'Finance payment required',$instructions);
+            notify_stage($pdo,$stage,'Finance payment required',stage_decision_message($stage,'PAYMENT_REQUESTED',$details,$comments,$instructions));
         } elseif($action==='REJECTED') {
             notify_stage($pdo,$stage,'Clearance stage rejected',
-                'Stage '.$stage['step_number'].': '.$comments.' Corrective instructions: '.$instructions.'. Submit a response and evidence to reopen this stage.');
+                stage_decision_message($stage,'REJECTED',$details,$comments,$instructions));
         } elseif (certificate_release_allowed($pdo,(int)$stage['clearance_request_id'])) {
             $pdo->prepare('UPDATE clearance_requests SET status="COMPLETED",completed_at=NOW() WHERE id=?')->execute([$stage['clearance_request_id']]);
             issue_certificate($pdo,(int)$stage['clearance_request_id']);
             ensure_transcript($pdo,(int)$stage['student_id'], $reviewer, (int)$stage['clearance_request_id']);
-            notify_stage($pdo,$stage,'Clearance completed','All 11 stages are approved. Your clearance transcript is available on your dashboard.');
+            notify_stage($pdo,$stage,'Clearance completed',stage_decision_message($stage,'COMPLETED',$details,$comments,''));
         } elseif ($action==='APPROVED') {
-            notify_stage($pdo,$stage,'Clearance stage approved','Stage '.$stage['step_number'].' ('.$stage['title'].') has approved your clearance. Check My Clearance for the remaining offices.');
+            notify_stage($pdo,$stage,'Clearance stage approved',stage_decision_message($stage,'APPROVED',$details,$comments,''));
         }
         audit($pdo,'STAGE_'.$action,$reviewer,(int)$stage['clearance_request_id'],'Stage '.$stageId.' review cycle '.$cycle.($acceptCorrection?'; officer verified student correction and confirmed office requirements resolved.':''));
         $pdo->commit();

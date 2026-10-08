@@ -1,6 +1,6 @@
 # Demo Accounts — Mwongozo wa kutumia mfumo
 
-Akaunti hizi ni za majaribio na presentation tu. Kuna wanafunzi **15**: wale 5 wa awali na wengine **10 wapya**, kuanzia namba `0006` hadi `0015`.
+Akaunti hizi ni za majaribio na presentation tu. Kuna demo accounts **15** za msingi: wale 5 wa awali na wengine **10 wapya**, kuanzia namba `0006` hadi `0015`. Pia kuna akaunti **6 zenye email** kwenye jedwali la **Accounts with email** hapa chini: Andrea na wanafunzi watano kutoka kwenye Excel.
 
 ## 1. Fungua mfumo
 
@@ -39,17 +39,22 @@ Mfano wa kuingia kwa akaunti mpya:
 
 Password ya mwanzo inatengenezwa kwa **jina la mwisho kwa herufi kubwa + tarakimu 4 za mwisho za registration number**. Mwanafunzi anaweza kubadilisha password kupitia **My Profile → Change Password**.
 
-### Akaunti mpya ya kujaribu email
+### Accounts with email
 
-Akaunti hii imeongezwa kwenye database ya sasa; ni tofauti na demo accounts 15 zinazotengenezwa moja kwa moja.
+Akaunti hizi zimeongezwa kwenye database ya sasa kwa demonstration ya notifications. Ziko tofauti na demo accounts 15 zinazotengenezwa moja kwa moja.
 
 | Student Name | Registration Number | Initial Password | Programme | Email |
 |---|---|---|---|---|
 | ANDREA RENATUS JUMA | IRDP/ODICT/MA26/0002 | JUMA0002 | ODICT | andrearenatusjuma25@gmail.com |
+| HERIETH KILIAN MWACHA | IRDP/ODICT/MA26/0010 | MWACHA0010 | ODICT | heriethmwacher@gmail.com |
+| ELIZABETH BOAZ MWAMBIJE | IRDP/ODICT/MA26/0009 | MWAMBIJE0009 | ODICT | elizabethboazy15@gmail.com |
+| KHALFANI SALUMU ATHUMAN | IRDP/ODICT/MA26/0016 | ATHUMAN0016 | ODICT | salumukhalfani996@gmail.com |
+| SAIDI SAID JUMA | IRDP/ODICT/MA26/0021 | JUMA0021 | ODICT | sidejuum20@gmail.com |
+| PRISCA MASHAKA MWAKILASA | IRDP/ODICT/MA26/0022 | MWAKILASA0022 | ODICT | Priscamwakilasa7@gmail.com |
 
-Academic cycle yake ni `2026/2027`. Login na kufunguka kwa dashboard vimehakikiwa. Mwanafunzi anaweza kubadilisha password kupitia **My Profile → Change Password**.
+Academic cycle ya akaunti zote sita ni `2026/2027`. Mwanafunzi anaweza kubadilisha password kupitia **My Profile → Change Password**.
 
-Email imehifadhiwa kwenye akaunti. Clearance notifications zimeunganishwa na SMTP; mtumaji wa majaribio ni `stevenkibabaje@gmail.com`. Gmail App Password inawekwa kwenye `config/mail.local.php`. Fuata [mwongozo wa email](README_EMAIL_NOTIFICATIONS.md) kusanidi mtumaji na kupima utumaji kupitia **Admin → Email Notifications**.
+Email zimehifadhiwa kwenye akaunti. Wanafunzi wanapoanza clearance na ofisi zinapotoa maamuzi, notifications huonekana ndani ya mfumo na email hutumwa moja kwa moja. Ujumbe wa ofisi unaonyesha stage, ofisi, uamuzi na maelekezo au control number husika. Mtumaji wa majaribio ni `stevenkibabaje@gmail.com`. Gmail App Password inawekwa kwenye `config/mail.local.php`. Fuata [mwongozo wa email](README_EMAIL_NOTIFICATIONS.md) kusanidi mtumaji na kupima utumaji kupitia hatua halisi za clearance.
 
 ## 3. Akaunti ya admin
 

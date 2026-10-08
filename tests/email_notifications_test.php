@@ -16,6 +16,15 @@ function email_http($curl, string $path, ?array $post = null): array {
     return [(int)curl_getinfo($curl,CURLINFO_RESPONSE_CODE),$body];
 }
 function email_csrf(string $body): string { if(!preg_match('/name="csrf_token" value="([^"]+)"/',$body,$m)){throw new RuntimeException('CSRF missing.');}return html_entity_decode($m[1],ENT_QUOTES,'UTF-8'); }
+function email_stage_fixture(PDO $pdo, int $user, int $step, string $cycle): array {
+    $s=$pdo->prepare('SELECT id,department_id FROM students WHERE user_id=?');$s->execute([$user]);$student=$s->fetch();
+    $s=$pdo->prepare('SELECT * FROM workflow_steps WHERE step_number=?');$s->execute([$step]);$workflow=$s->fetch();
+    $reviewer=find_office_reviewer($pdo,(int)$workflow['office_id'],$step===7?(int)$student['department_id']:0);
+    $pdo->prepare('INSERT IGNORE INTO academic_cycles(label) VALUES (?)')->execute([$cycle]);
+    $pdo->prepare('INSERT INTO clearance_requests(student_id,academic_year,status,started_at) VALUES (?,?,"IN_PROGRESS",NOW())')->execute([$student['id'],$cycle]);$request=(int)$pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status,started_at,actionable_at) VALUES (?,?,?,?,?,"PENDING",NOW(),NOW())')->execute([$request,$workflow['id'],$workflow['office_id'],$reviewer,$reviewer]);
+    $id=(int)$pdo->lastInsertId();ensure_review_cycle($pdo,$id);return stage_context($pdo,$id);
+}
 $database='irdp_email_test_'.bin2hex(random_bytes(8));
 $server=null;$created=false;$smtp=null;$web=null;$exit=0;
 $runtime=__DIR__.'/.email-sessions/'.$database;
@@ -94,6 +103,27 @@ try {
     email_check($result['sent']===1&&(int)$pdo->query('SELECT COUNT(*) FROM email_outbox WHERE status="PENDING"')->fetchColumn()===$pendingBefore,'Targeted test sent unrelated pending notifications.');
     echo "PASS: test delivery sends only its selected notification\n";
 
+    $library=email_stage_fixture($pdo,$user,1,'2038/2039');
+    process_stage_decision($pdo,(int)$library['id'],(int)$library['assigned_officer_id'],[
+        'action'=>'REJECTED','review_cycle'=>'1','amount'=>'12500',
+        'comments'=>'Kitabu hakijarudishwa.','corrective_instructions'=>'Rudisha kitabu kwenye ofisi ya Library.',
+    ],review_fields(1));
+    $s=$pdo->prepare('SELECT n.id,n.title,n.message,q.recipient FROM notifications n JOIN email_outbox q ON q.notification_id=n.id WHERE n.user_id=? AND n.title LIKE "Clearance stage rejected%" ORDER BY n.id DESC LIMIT 1');$s->execute([$user]);$notice=$s->fetch();
+    email_check($notice&&str_contains($notice['title'],$library['office_name'])&&str_contains($notice['message'],'Stage: 1 / 11')&&str_contains($notice['message'],'2038/2039')&&str_contains($notice['message'],'REJECTED')&&str_contains($notice['message'],'Kitabu hakijarudishwa.')&&str_contains($notice['message'],'12,500.00')&&str_contains($notice['message'],'Rudisha kitabu kwenye ofisi ya Library.'),'Library rejection email lost its office, stage, decision, amount or instructions.');
+    $sport=email_stage_fixture($pdo,$user,2,'2040/2041');
+    process_stage_decision($pdo,(int)$sport['id'],(int)$sport['assigned_officer_id'],[
+        'action'=>'APPROVED','review_cycle'=>'1','amount'=>'0','comments'=>'Ada ya michezo imelipwa.','corrective_instructions'=>'',
+    ],review_fields(2));
+    $s=$pdo->prepare('SELECT n.title,n.message FROM notifications n JOIN email_outbox q ON q.notification_id=n.id WHERE n.user_id=? AND n.title LIKE "Clearance stage approved%" ORDER BY n.id DESC LIMIT 1');$s->execute([$user]);$notice=$s->fetch();
+    email_check($notice&&str_contains($notice['title'],$sport['office_name'])&&str_contains($notice['message'],'Stage: 2 / 11')&&str_contains($notice['message'],'APPROVED')&&str_contains($notice['message'],'Ada ya michezo imelipwa.')&&!str_contains($notice['message'],'Kitabu hakijarudishwa.'),'Sports approval used another office\'s message or omitted its decision.');
+    $finance=email_stage_fixture($pdo,$user,11,'2042/2043');
+    process_stage_decision($pdo,(int)$finance['id'],(int)$finance['assigned_officer_id'],[
+        'action'=>'PAYMENT_REQUESTED','review_cycle'=>'1','control_number'=>'991234567890',
+    ],review_fields(11));
+    $s=$pdo->prepare('SELECT n.title,n.message FROM notifications n JOIN email_outbox q ON q.notification_id=n.id WHERE n.user_id=? AND n.title LIKE "Finance payment required%" ORDER BY n.id DESC LIMIT 1');$s->execute([$user]);$notice=$s->fetch();
+    email_check($notice&&str_contains($notice['title'],$finance['office_name'])&&str_contains($notice['message'],'Stage: 11 / 11')&&str_contains($notice['message'],'PAYMENT REQUIRED')&&str_contains($notice['message'],'991234567890')&&str_contains($notice['message'],'pakia receipt'),'Finance email omitted its stage, control number or payment instructions.');
+    echo "PASS: actual Library rejection, Sports approval and Finance payment produce different stage-specific queued emails\n";
+
     $environment=getenv();$environment['DB_HOST']=DB_HOST;$environment['DB_PORT']=(string)DB_PORT;$environment['DB_NAME']=$database;$environment['DB_USER']=DB_USER;$environment['DB_PASS']=DB_PASS;
     $web=proc_open([PHP_BINARY,'-d','session.save_path='.$runtime,'-S','127.0.0.1:18089','-t',dirname(__DIR__),__DIR__.'/http_router.php'],[0=>['pipe','r'],1=>['file',$runtime.'/web.log','a'],2=>['file',$runtime.'/web.log','a']],$pipes,dirname(__DIR__),$environment);
     email_check(is_resource($web),'HTTP fixture failed to start.');fclose($pipes[0]);
@@ -108,8 +138,12 @@ try {
     curl_close($curl);$curl=curl_init();curl_setopt($curl,CURLOPT_COOKIEFILE,'');
     [$code,$body]=email_http($curl,'/auth/login.php');
     [$code]=email_http($curl,'/auth/login.php',['csrf_token'=>email_csrf($body),'username'=>'admin','password'=>'Admin@IRDP2026']);email_check($code===302,'Admin login failed.');
-    [$code,$body]=email_http($curl,'/admin/email_notifications.php');email_check($code===200&&str_contains($body,'Recent delivery history'),'Admin delivery history unavailable.');curl_close($curl);
-    echo "PASS: student profile HTTP save, CSRF protection and admin-only delivery history\n";
+    [$code,$body]=email_http($curl,'/admin/email_notifications.php');email_check($code===302,'Retired email administration route did not redirect.');
+    [$code,$body]=email_http($curl,'/admin/dashboard.php');email_check($code===200&&!str_contains($body,'admin/email_notifications.php'),'Admin still exposes email notification controls.');
+    $outboxBefore=(int)$pdo->query('SELECT COUNT(*) FROM email_outbox')->fetchColumn();
+    [$code]=email_http($curl,'/admin/email_notifications.php',['csrf_token'=>email_csrf($body),'action'=>'test','student_user_id'=>(string)$user]);
+    email_check($code===302&&(int)$pdo->query('SELECT COUNT(*) FROM email_outbox')->fetchColumn()===$outboxBefore,'Retired test action queued an email.');curl_close($curl);
+    echo "PASS: student profile HTTP save, CSRF protection and retired email administration controls\n";
 } catch (Throwable $e) { fwrite(STDERR,'FAIL: '.$e->getMessage()."\n");$exit=1; }
 finally {
     if(is_resource($web)){proc_terminate($web);proc_close($web);}

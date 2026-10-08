@@ -62,7 +62,6 @@ if ($u) {
                 <?php else: ?>
                     <a href="<?= e(url('admin/dashboard.php')) ?>"><?= icon('home') ?> <span>Dashboard</span></a>
                     <a href="<?= e(url('admin/users.php')) ?>"><?= icon('users') ?> <span>Users</span></a>
-                    <a href="<?= e(url('admin/email_notifications.php')) ?>"><?= icon('bell') ?> <span>Email Notifications</span></a>
                     <a href="<?= e(url('admin/recovery.php')) ?>"><?= icon('key') ?> <span>Password Reset Requests</span><?php if ($recoveryRequestCount > 0): ?><b class="nav-count"><?= $recoveryRequestCount ?></b><?php endif; ?></a>
                     <a href="<?= e(url('admin/programmes.php')) ?>"><?= icon('book-open') ?> <span>Programmes</span></a>
                     <a href="<?= e(url('admin/clearance_period.php')) ?>"><?= icon('calendar') ?> <span>Clearance Period</span></a>
