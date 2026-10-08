@@ -4,6 +4,12 @@ declare(strict_types=1);
 /** Manage the student profile, profile picture and optional password change. */
 require_once __DIR__.'/../includes/bootstrap.php';require_role('STUDENT');$error='';$errors=[];$studentId=(int)current_user()['student_id'];
 if($_SERVER['REQUEST_METHOD']==='POST'){$new=null;$source=null;$saved=false;try{verify_csrf();$mode=text_input($_POST,'mode',20);
+    if($mode==='email'){
+        rate_limit($pdo,'notification_email_update',request_ip().':'.current_user()['id'],10,15);
+        update_student_notification_email($pdo,(int)current_user()['id'],$_POST);
+        flash('success','Email saved. Future clearance notifications will be sent to this address when email delivery is available.');
+        redirect('student/profile.php');
+    }
     if($mode==='upload'){$file=$_FILES['picture']??[];validate_profile_upload($file);$source=bin2hex(random_bytes(24)).'.'.(strtolower(pathinfo($file['name'],PATHINFO_EXTENSION))==='png'?'png':'jpg');if(!move_uploaded_file($file['tmp_name'],private_path('profiles',$source))){throw new RuntimeException('Upload could not be stored.');}$new=bin2hex(random_bytes(24)).'.jpg';resize_profile_image(private_path('profiles',$source),private_path('profiles',$new));private_delete('profiles',$source);$source=null;}
     elseif($mode!=='remove'){throw new RuntimeException('Invalid profile action.');}
     $pdo->beginTransaction();$s=$pdo->prepare('SELECT profile_file FROM students WHERE id=? AND user_id=? FOR UPDATE');$s->execute([$studentId,current_user()['id']]);$old=$s->fetch();if(!$old){throw new RuntimeException('Student not found.');}$pdo->prepare('UPDATE students SET profile_file=? WHERE id=?')->execute([$new,$studentId]);audit($pdo,$new?'PROFILE_PICTURE_UPDATED':'PROFILE_PICTURE_REMOVED',(int)current_user()['id']);$pdo->commit();$saved=true;if($old['profile_file']){delete_unreferenced_profile($pdo,$old['profile_file']);}flash('success',$new?'Profile picture updated.':'Profile picture removed.');redirect('student/profile.php');
@@ -15,8 +21,21 @@ $student=get_student($pdo,$studentId);$pageTitle='Student Profile';require_once 
     <img id="profilePreview" class="profile-avatar" src="<?= e(profile_picture_url($student)) ?>" width="160" height="160" alt="Student profile picture">
     <h2><?= e($student['full_name']) ?></h2>
     <p><?= e($student['registration_number']) ?> &middot; <?= e($student['programme']) ?> &middot; <?= e($student['department']) ?></p>
+    <h2>Email notifications</h2>
+    <p>Add your email to receive clearance updates. Confirm changes with your current password.</p>
+    <?php if($error && ($_POST['mode']??'')==='email'): ?><div class="alert danger" role="alert"><?= e($error) ?></div><?php endif; ?>
+    <form method="post">
+        <?php csrf_field(); ?>
+        <input type="hidden" name="mode" value="email">
+        <?php form_fields([
+            'email'=>['label'=>'Notification email','type'=>'email','required'=>true,'maxlength'=>160,'autocomplete'=>'email','value'=>$student['user_email']??''],
+            'current_password'=>['label'=>'Current password','type'=>'password','required'=>true,'autocomplete'=>'current-password'],
+        ],$errors); ?>
+        <button class="btn primary" type="submit">Save email</button>
+    </form>
+    <h2>Profile picture</h2>
     <p>Choose a clear JPG, JPEG or PNG portrait, up to 5 MB, then click Save picture. Your picture will appear on your profile, dashboard and account header.</p>
-    <?php if ($error): ?><div class="alert danger" role="alert"><?= e($error) ?></div><?php endif; ?>
+    <?php if ($error && ($_POST['mode']??'')!=='email'): ?><div class="alert danger" role="alert"><?= e($error) ?></div><?php endif; ?>
     <form id="profileUpload" method="post" enctype="multipart/form-data">
         <?php csrf_field(); ?>
         <input type="hidden" name="mode" value="upload">

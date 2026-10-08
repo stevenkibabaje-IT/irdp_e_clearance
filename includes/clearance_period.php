@@ -60,7 +60,9 @@ function update_clearance_period(PDO $pdo,array $input,int $actor): void {
         $after=clearance_period_state($pdo);
         academic_audit($pdo,$mode==='MANUAL_OPEN'?'CLEARANCE_OPENED':($mode==='MANUAL_CLOSED'?'CLEARANCE_CLOSED':'CLEARANCE_PERIOD_CHANGED'),$actor,null,null,$before,$after,$remarks);
         if($after['is_open']&&(!$before['is_open']||$before['cycle_id']!==$after['cycle_id'])) {
-            $pdo->prepare('INSERT INTO notifications(user_id,title,message) SELECT s.user_id,"Clearance period opened",? FROM students s INNER JOIN users u ON u.id=s.user_id WHERE u.active=1')->execute(['Clearance is open for '.$after['academic_cycle'].'. Check your dashboard for period details.']);
+            foreach ($pdo->query('SELECT s.user_id FROM students s INNER JOIN users u ON u.id=s.user_id WHERE u.active=1')->fetchAll() as $student) {
+                notify($pdo, (int)$student['user_id'], 'Clearance period opened', 'Clearance is open for '.$after['academic_cycle'].'. Check your dashboard for period details.');
+            }
         }
         $pdo->commit();
     }catch(Throwable $e){if($pdo->inTransaction()){$pdo->rollBack();}throw $e;}

@@ -284,6 +284,8 @@ function process_stage_decision(PDO $pdo,int $stageId,int $reviewer,array $input
             issue_certificate($pdo,(int)$stage['clearance_request_id']);
             ensure_transcript($pdo,(int)$stage['student_id'], $reviewer, (int)$stage['clearance_request_id']);
             notify_stage($pdo,$stage,'Clearance completed','All 11 stages are approved. Your clearance transcript is available on your dashboard.');
+        } elseif ($action==='APPROVED') {
+            notify_stage($pdo,$stage,'Clearance stage approved','Stage '.$stage['step_number'].' ('.$stage['title'].') has approved your clearance. Check My Clearance for the remaining offices.');
         }
         audit($pdo,'STAGE_'.$action,$reviewer,(int)$stage['clearance_request_id'],'Stage '.$stageId.' review cycle '.$cycle.($acceptCorrection?'; officer verified student correction and confirmed office requirements resolved.':''));
         $pdo->commit();

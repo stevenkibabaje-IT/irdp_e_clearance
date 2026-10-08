@@ -8,6 +8,7 @@
 
 # Local credentials and machine configuration.
 .env
+/config/mail.local.php
 .env.*
 !.env.example
 *.pem

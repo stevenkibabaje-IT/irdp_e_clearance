@@ -39,6 +39,18 @@ Mfano wa kuingia kwa akaunti mpya:
 
 Password ya mwanzo inatengenezwa kwa **jina la mwisho kwa herufi kubwa + tarakimu 4 za mwisho za registration number**. Mwanafunzi anaweza kubadilisha password kupitia **My Profile → Change Password**.
 
+### Akaunti mpya ya kujaribu email
+
+Akaunti hii imeongezwa kwenye database ya sasa; ni tofauti na demo accounts 15 zinazotengenezwa moja kwa moja.
+
+| Student Name | Registration Number | Initial Password | Programme | Email |
+|---|---|---|---|---|
+| ANDREA RENATUS JUMA | IRDP/ODICT/MA26/0002 | JUMA0002 | ODICT | andrearenatusjuma25@gmail.com |
+
+Academic cycle yake ni `2026/2027`. Login na kufunguka kwa dashboard vimehakikiwa. Mwanafunzi anaweza kubadilisha password kupitia **My Profile → Change Password**.
+
+Email imehifadhiwa kwenye akaunti. Clearance notifications zimeunganishwa na SMTP; mtumaji wa majaribio ni `stevenkibabaje@gmail.com`. Gmail App Password inawekwa kwenye `config/mail.local.php`. Fuata [mwongozo wa email](README_EMAIL_NOTIFICATIONS.md) kusanidi mtumaji na kupima utumaji kupitia **Admin → Email Notifications**.
+
 ## 3. Akaunti ya admin
 
 | Username | Password | Matumizi |

@@ -15,6 +15,7 @@ require_once __DIR__ . '/forms.php';
 require_once __DIR__ . '/icons.php';
 require_once __DIR__ . '/clearance_progress.php';
 require_once __DIR__ . '/accounts.php';
+require_once __DIR__ . '/email_notifications.php';
 require_once __DIR__ . '/clearance_period.php';
 require_once __DIR__ . '/transcripts.php';
 
@@ -174,13 +175,24 @@ function audit(PDO $pdo, string $action, ?int $userId = null, ?int $requestId = 
     ]);
 }
 
-function notify(PDO $pdo, int $userId, string $title, string $message): void
+function notify(PDO $pdo, int $userId, string $title, string $message): int
 {
-    $stmt = $pdo->prepare(
-        'INSERT INTO notifications (user_id, title, message, is_read, created_at)
-         VALUES (?, ?, ?, 0, NOW())'
-    );
-    $stmt->execute([$userId, $title, $message]);
+    $ownTransaction = !$pdo->inTransaction();
+    if ($ownTransaction) { $pdo->beginTransaction(); }
+    try {
+        $stmt = $pdo->prepare(
+            'INSERT INTO notifications (user_id, title, message, is_read, created_at)
+             VALUES (?, ?, ?, 0, NOW())'
+        );
+        $stmt->execute([$userId, $title, $message]);
+        $notificationId = (int)$pdo->lastInsertId();
+        queue_notification_email($pdo, $notificationId);
+        if ($ownTransaction) { $pdo->commit(); }
+        return $notificationId;
+    } catch (Throwable $e) {
+        if ($ownTransaction && $pdo->inTransaction()) { $pdo->rollBack(); }
+        throw $e;
+    }
 }
 
 function humanize_status(string $status): string

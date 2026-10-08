@@ -6,7 +6,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 
 // Bump when schema or initial reference-data requirements change.
-const APPLICATION_SCHEMA_VERSION = '2026_runtime_v12_clearance_entry_fee';
+const APPLICATION_SCHEMA_VERSION = '2026_runtime_v13_email_notifications';
 
 function database_schema_ready(PDO $db): bool
 {
@@ -320,6 +320,9 @@ SQL,
     migrate_features($db);
     migrate_password_recovery_requests($db);
     migrate_retired_notification_settings($db);
+
+    require_once __DIR__ . '/email_notification_migrations.php';
+    migrate_email_notifications($db);
 
     seed_reference_data($db);
     seed_demo_accounts($db);
