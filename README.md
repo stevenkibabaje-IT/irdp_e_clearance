@@ -85,10 +85,13 @@ Verify expiry, CSRF, cookie settings and revoked sessions with `C:\xampp\php\php
 - `TRANS001` / `Kweka@2026`
 - `DISP001` / `Mushi@2026`
 - `EPM001` / `Mgimwa@2026`
+- `FMS001` / `Mwangaza@2026` — local demo Head of Department for FMS; change this temporary password at first login.
 - `HOSTEL001` / `Mushi@2026`
 - `DSA001` / `Said@2026`
 - `ADM001` / `Kimaro@2026`
 - `FIN001` / `Mollel@2026`
+
+FMS001 handles departmental clearance (stage 7) for FMS students; FIN001 handles entry fees and Finance debts (stage 11). FMS001 was added to this local demo database after ODICT moved to FMS and is not automatically seeded on a fresh installation. The local demo now has 34 accounts; see [the demo account guide](README_DEMO_ACCOUNTS.md) for first-login instructions and accounts whose passwords have changed.
 
 ## Demo Student Accounts
 

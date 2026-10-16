@@ -8,7 +8,7 @@ Akaunti hizi ni za majaribio na presentation tu. Kuna demo accounts **15** za ms
 2. Fungua [IRDP e-Clearance](http://localhost/Irdp_e_clearance/).
 3. Bonyeza **Login**, kisha tumia username na password kwenye jedwali hapa chini.
 
-Mfumo wa awali umerejeshwa pamoja na akaunti zote **33**: wanafunzi 21, officers 11 na admin 1. Akaunti sita za sehemu ya **Accounts with email** zipo kwenye database ya sasa. Password za akaunti zilizopo zimehifadhiwa. Akaunti za msingi hutengenezwa wakati wa setup; akaunti nyingine huongezwa kupitia **Admin → Users**.
+Database ya demo kwenye kompyuta hii ina akaunti **34**: wanafunzi 21, officers 12 na admin 1. Hizi ni akaunti 33 zilizorejeshwa awali pamoja na **FMS001**, Head of Department wa FMS. Akaunti sita za sehemu ya **Accounts with email** zipo kwenye database hii. Akaunti za msingi hutengenezwa wakati wa setup; akaunti nyingine huongezwa kupitia **Admin → Users**. Kunakili repository pekee hakunakili akaunti zilizoongezwa kwenye database ya kompyuta hii.
 
 ## 2. Akaunti za wanafunzi
 
@@ -37,7 +37,7 @@ Mfano wa kuingia kwa akaunti mpya:
 - Username: `IRDP/BTCCD/MA25/0006`
 - Password: `SAID0006`
 
-Password ya mwanzo inatengenezwa kwa **jina la mwisho kwa herufi kubwa + tarakimu 4 za mwisho za registration number**. Mwanafunzi anaweza kubadilisha password kupitia **My Profile → Change Password**.
+Password ya mwanzo inatengenezwa kwa **jina la mwisho kwa herufi kubwa + tarakimu 4 za mwisho za registration number**. Mwanafunzi anaweza kubadilisha password kupitia **profile ya juu kulia → Change Password**.
 
 ### Accounts with email
 
@@ -45,14 +45,16 @@ Akaunti hizi zimeongezwa kwenye database ya sasa kwa demonstration ya notificati
 
 | Student Name | Registration Number | Initial Password | Programme | Email |
 |---|---|---|---|---|
-| ANDREA RENATUS JUMA | IRDP/ODICT/MA26/0002 | JUMA0002 | ODICT | andrearenatusjuma25@gmail.com |
-| HERIETH KILIAN MWACHA | IRDP/ODICT/MA26/0010 | MWACHA0010 | ODICT | heriethmwacher@gmail.com |
+| ANDREA RENATUS JUMA | IRDP/ODICT/MA26/0002 | — | ODICT | andrearenatusjuma25@gmail.com |
+| HERIETH KILIAN MWACHA | IRDP/ODICT/MA26/0010 | MWACHA0010 | ODICT | stevenkibabaje@gmail.com |
 | ELIZABETH BOAZ MWAMBIJE | IRDP/ODICT/MA26/0009 | MWAMBIJE0009 | ODICT | elizabethboazy15@gmail.com |
 | KHALFANI SALUMU ATHUMAN | IRDP/ODICT/MA26/0016 | ATHUMAN0016 | ODICT | salumukhalfani996@gmail.com |
 | SAIDI SAID JUMA | IRDP/ODICT/MA26/0021 | JUMA0021 | ODICT | sidejuum20@gmail.com |
-| PRISCA MASHAKA MWAKILASA | IRDP/ODICT/MA26/0022 |  | ODICT | PriscamwakMWAKILASA0022ilasa7@gmail.com |
+| PRISCA MASHAKA MWAKILASA | IRDP/ODICT/MA26/0022 | MWAKILASA0022 | ODICT | Priscamwakilasa7@gmail.com |
 
-Academic cycle ya akaunti zote sita ni `2026/2027`. Mwanafunzi anaweza kubadilisha password kupitia **My Profile → Change Password**.
+Academic cycle ya akaunti zote sita ni `2026/2027`. Alama **—** inaonyesha password ya mwanzo ilibadilishwa; password ya sasa haijaorodheshwa. Andrea atumie password yake ya sasa au **Forgot Password** kupitia email iliyosajiliwa. Password yake haijabadilishwa wakati wa kusahihisha mwongozo huu. Mwanafunzi anaweza kubadilisha password kupitia **profile ya juu kulia → Change Password**.
+
+Email kwenye jedwali zinaonyesha zilizohifadhiwa kwenye database ya demo tarehe 16 Oktoba 2026. Akaunti ya HERIETH kwa sasa inatumia `stevenkibabaje@gmail.com` kwa majaribio; kubadilisha email kunafanywa kupitia **My Profile** kwa nenosiri la sasa.
 
 Email zimehifadhiwa kwenye akaunti. Wanafunzi wanapoanza clearance na ofisi zinapotoa maamuzi, notifications huonekana ndani ya mfumo na email hutumwa moja kwa moja. Ujumbe wa ofisi unaonyesha stage, ofisi, uamuzi na maelekezo au control number husika. Mtumaji wa majaribio ni `stevenkibabaje@gmail.com`. Gmail App Password inawekwa kwenye `config/mail.local.php`. Fuata [mwongozo wa email](README_EMAIL_NOTIFICATIONS.md) kusanidi mtumaji na kupima utumaji kupitia hatua halisi za clearance.
 
@@ -73,7 +75,7 @@ Kabla ya kuanza demo, ingia kama admin:
 
 Kila officer anafanya review ya ofisi yake bila kusubiri nyingine.
 
-| Ofisi | Username | Password |
+| Ofisi | Username | Password ya demo |
 |---|---|---|
 | Librarian | LIB001 | Mrema@2026 |
 | Sports and Games | SPORT001 | John@2026 |
@@ -81,11 +83,16 @@ Kila officer anafanya review ya ofisi yake bila kusubiri nyingine.
 | Supplies | SUP001 | Mallya@2026 |
 | Transport | TRANS001 | Kweka@2026 |
 | Dispensary | DISP001 | Mushi@2026 |
-| Head of Department | EPM001 | Mgimwa@2026 |
+| Head of Department — EPM | EPM001 | Mgimwa@2026 |
+| Head of Department — FMS | FMS001 | Mwangaza@2026 |
 | Hostels / Accommodation | HOSTEL001 | Mushi@2026 |
 | Student Affairs | DSA001 | Said@2026 |
 | Admissions | ADM001 | Kimaro@2026 |
 | Finance | FIN001 | Mollel@2026 |
+
+**FMS001** ni Head of Department wa **Department of Finance and Management Studies**. Anakagua hatua ya **7** kwa wanafunzi wa idara hiyo; kwenye database hii ODICT iko FMS. **EPM001** anakagua wanafunzi wa EPM. **FIN001** anasimamia ada ya kuanza clearance na madeni ya hatua ya **11**. Akaunti hizi zina majukumu tofauti.
+
+Password ya muda ya **FMS001** imewekwa tarehe **16 Oktoba 2026**. Ukiingia kwa `FMS001` / `Mwangaza@2026`, mfumo utakufungua **Change Password**: weka password hiyo kwenye **Current password**, chagua na uthibitishe password mpya, kisha ingia tena kwa mpya. Password mpya haitahifadhiwa kwenye README hii. Sharti hili linahusu akaunti za watumishi zilizowekewa mabadiliko ya lazima; wanafunzi hubadilisha password kwa hiari.
 
 ## 5. Jaribu clearance
 
@@ -133,7 +140,9 @@ Mfumo unaonyesha onyo dakika 1 kabla ya session kuisha. Bonyeza **Continue sessi
 Endesha ukiwa kwenye folder ya mradi:
 
 ```powershell
-& 'C:/xampp1/php/windowsXamppPhp/php.exe' -n -d extension_dir=C:/xampp1/php/ext -d extension=pdo_mysql tests/documented_demo_accounts_test.php
+& 'C:/xampp1/php/php.exe' tests/documented_demo_accounts_test.php
+# Pima login, sharti la password la FMS na Finance kupitia Apache:
+& 'C:/xampp1/php/php.exe' tests/documented_demo_accounts_test.php FMS001 FIN001
 ```
 
-Test hii inasoma database ya sasa bila kubadilisha password: inahakiki akaunti zote 33 dhidi ya mwongozo huu na kuthibitisha schema ya awali. Password iliyobadilishwa na mtumiaji itaripotiwa kama tofauti; haitarejeshwa moja kwa moja. Ukiongeza `-d extension=curl` kabla ya jina la test na username baada yake, test itapima login na dashboard kupitia Apache pia. Vipimo vya HTTP huhifadhi rekodi za kawaida za login; tumia akaunti chache kwa mara ili kuheshimu ukomo wa majaribio ya kuingia.
+Test hii inasoma database ya sasa bila kubadilisha password: inahakiki akaunti zote 34, email zilizoandikwa, majukumu ya FMS/EPM/Finance na schema. Password zilizoandikwa zinahakikiwa dhidi ya hash; alama **—** huripotiwa kuwa password haijachapishwa na haitumiki kwenye jaribio la login. Password iliyoandikwa ikibadilishwa, test itaripoti tofauti bila kuirejesha. Ukiongeza username baada ya jina la test, inapima login na dashboard kupitia Apache; kwa mtumishi mwenye sharti la kubadilisha password, inahakiki ukurasa wa Change Password na kuzuiwa kwa dashboard. Vipimo vya HTTP huhifadhi rekodi za kawaida za login; tumia akaunti chache kwa mara ili kuheshimu ukomo wa majaribio ya kuingia.

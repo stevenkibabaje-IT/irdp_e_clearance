@@ -16,14 +16,16 @@ function documented_demo_accounts(): array
         $username = $cells[$role === 'ADMIN' ? 0 : 1] ?? '';
         if (!preg_match('~^(?:IRDP/[A-Z]+/MA[0-9]{2}/[0-9]{4}|admin|[A-Z]+001)$~D', $username)) { continue; }
         if (isset($accounts[$username])) { throw new RuntimeException('Duplicate documented account: ' . $username); }
+        $password = $cells[$role === 'ADMIN' ? 1 : 2] ?? '';
+        if ($password === '') { throw new RuntimeException('Missing documented password or explicit unavailable marker: ' . $username); }
         $accounts[$username] = [
             'username' => $username, 'role' => $role,
-            'password' => $cells[$role === 'ADMIN' ? 1 : 2],
+            'password' => $password === '—' ? null : $password,
             'full_name' => $cells[0], 'programme' => $cells[3] ?? null,
             'email' => $role === 'STUDENT' ? ($cells[4] ?? '') : '',
             'academic_year' => str_contains($username, '/MA26/') ? '2026/2027' : '2025/2026',
         ];
     }
-    if (count($accounts) !== 33) { throw new RuntimeException('Expected 33 documented demo accounts.'); }
+    if (count($accounts) !== 34) { throw new RuntimeException('Expected 34 documented demo accounts.'); }
     return $accounts;
 }
