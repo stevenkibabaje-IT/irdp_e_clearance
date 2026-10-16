@@ -59,7 +59,11 @@ try {
     email_check(is_resource($smtp),'SMTP fixture failed to start.');fclose($smtpPipes[0]);
     $address=trim((string)fgets($smtpPipes[1]));
     email_check((bool)preg_match('/^127\.0\.0\.1:([0-9]+)$/D',$address,$match),'SMTP fixture address unavailable.');$config['port']=(int)$match[1];
-    $result=process_notification_emails($pdo,20,$config);
+    $mailWarnings=[];
+    set_error_handler(static function(int $severity,string $message)use(&$mailWarnings): bool {$mailWarnings[]=$message;return false;});
+    try {$result=process_notification_emails($pdo,20,$config);}
+    finally {restore_error_handler();}
+    email_check(!$mailWarnings,'SMTP delivery emitted PHP warnings or deprecations.');
     email_check($result['sent']===1&&$result['retry']===0,'PHPMailer did not send to local SMTP.');
     fclose($smtpPipes[1]);email_check(proc_close($smtp)===0,'SMTP fixture failed.');$smtp=null;
     $message=file_get_contents($messagePath);

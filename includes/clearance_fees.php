@@ -65,7 +65,7 @@ function request_clearance_fee(PDO $pdo, int $actor): int
         $s=$pdo->prepare('SELECT id FROM students WHERE user_id=? FOR UPDATE');$s->execute([$actor]);$student=(int)$s->fetchColumn();
         if (!$student) { throw new RuntimeException('Student account not found.'); }
         $period=require_clearance_period($pdo,null,true);
-        if (get_clearance_for_cycle($pdo,$student,$period['academic_cycle'])) { throw new RuntimeException('Your existing clearance continues without an entry-fee payment.'); }
+        if (get_student_clearance($pdo,$student)) { throw new RuntimeException('This registration number already has a clearance. Continue the existing request without another entry-fee payment.'); }
         $existing=clearance_fee_for_cycle($pdo,$student,(int)$period['cycle_id']);
         if ($existing) { $pdo->commit();return (int)$existing['id']; }
         $reviewer=find_office_reviewer($pdo,clearance_finance_office($pdo));

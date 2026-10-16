@@ -1,5 +1,9 @@
 # Email notifications za clearance
 
+Mfumo wa awali umerejeshwa tarehe 13 Oktoba 2026. Foleni ya email inatumia
+`email_outbox`, na notifications za ndani zinatumia `notifications`.
+Configuration ya SMTP imehifadhiwa. Maelezo yaliyo chini yanatumika tena.
+
 Mwanafunzi mwenye email kwenye akaunti yake anapata notification ndani ya mfumo na ujumbe wa email kwa matukio haya:
 
 - Kipindi cha clearance kufunguliwa.
@@ -16,7 +20,7 @@ Demo accounts zisizo na email zinaendelea kufanya kazi. Mwanafunzi anaongeza au 
 1. Ingia kwenye Gmail ya mtumaji. Kwa majaribio haya mtumaji ni `stevenkibabaje@gmail.com`.
 2. Washa **2-Step Verification** kwenye Google Account.
 3. Fungua [Google App Passwords](https://myaccount.google.com/apppasswords), tengeneza App Password kwa jina `IRDP Clearance` na nakili password iliyoonyeshwa.
-4. Fungua `C:\xampp\htdocs\Irdp_e_clearance\config\mail.local.php` kwenye editor. Weka App Password kwenye `'password' => ''`, kisha save. Password ya kawaida ya Gmail haitumiki hapa.
+4. Fungua `config/mail.local.php` ndani ya folder ya mradi kwenye editor. Kwa kompyuta hii mradi uko `C:\xampp1\htdocs\Irdp_e_clearance`. Weka App Password kwenye `'password' => ''`, kisha save. Password ya kawaida ya Gmail haitumiki hapa.
 5. Hakikisha `enabled` ni `true`, `host` ni `smtp.gmail.com`, `port` ni `587`, `encryption` ni `tls` na `username` pamoja na `from_email` ni email ya mtumaji.
 
 Usitume password kwenye chat au kuiweka kwenye README. `mail.local.php` haijumuishwi kwenye Git na folder ya config imezuiwa kufunguliwa kupitia Apache. Kwa kompyuta nyingine, nakili `config/mail.example.php` kuwa `config/mail.local.php` na jaza taarifa za mtumaji.
@@ -53,17 +57,29 @@ Task **IRDP e-Clearance Email Notifications** hutuma ujumbe kila dakika moja wak
 Kuendesha worker kwa mkono:
 
 ```powershell
-C:\xampp\php\php.exe jobs\send_notification_emails.php
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File jobs\run_email_worker.ps1
 ```
 
 Worker huchakata hadi email 20 kwa mzunguko na huzuia workers wawili kutuma foleni hiyo kwa wakati mmoja. Email zilizotumwa hazichakatwi tena. Ujumbe kwa anwani ya zamani hufutwa mwanafunzi akibadilisha email. Worker ikisimama baada ya SMTP kukubali ujumbe lakini kabla ya kurekodi hali, ujumbe unaweza kutumwa tena wakati wa recovery.
+
+Kukagua configuration, PHP extensions na hali ya foleni bila kutuma email:
+
+```powershell
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File jobs\run_email_worker.ps1 -Check
+```
+
+Ukihamisha XAMPP au folder ya mradi, hakikisha Windows Task Scheduler ina
+**Action** na **Start in** zinazotumia njia mpya. Tarehe 13 Oktoba 2026 task
+ilirekebishwa kutoka `C:\xampp\...` kwenda `C:\xampp1\...`; njia ya zamani
+ilisababisha email kubaki `PENDING` na `attempts=0`. Worker sasa hutafuta PHP
+kwenye XAMPP ya mradi na kupakia `php.ini` yake bila kupakia OpenSSL mara mbili.
 
 `APPLICATION_ORIGIN` kwenye `config/application.php` hutengeneza link ya mfumo ndani ya ujumbe. Kwa sasa ni `http://localhost/Irdp_e_clearance`, inayofunguka kwenye kompyuta yenye XAMPP; kwa wanafunzi wanaotumia vifaa vingine, weka URL ya mfumo wanayoweza kufikia.
 
 ## Ukaguzi kwa developer
 
 ```powershell
-C:\xampp\php\php.exe tests\email_notifications_test.php
+& 'C:/xampp1/php/windowsXamppPhp/php.exe' -c 'C:/xampp1/php/php.ini' tests/email_notifications_test.php
 ```
 
 Test hutumia database tofauti na SMTP ya ndani inayopokea ujumbe bila kuwasiliana na Gmail. Inahakiki rollback, kutorudia ujumbe uliotumwa, retry, usiri wa errors, ujumbe wa stage, mabadiliko ya email, profile kupitia HTTP na kuondolewa kwa controls za email kwenye admin. Database ya majaribio huondolewa baada ya kumaliza.

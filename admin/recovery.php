@@ -42,8 +42,8 @@ $pageTitle='Password Reset Requests';require_once __DIR__.'/../includes/header.p
 <?php if($credential):?>
 <section class="panel"><div class="alert success"><strong>Reset code issued. It expires in 30 minutes and is shown only in this response.</strong>
 <p><code id="reset-code" style="overflow-wrap:anywhere"><?=e($credential)?></code></p>
-<p>Give this code privately to the verified account holder. They can open <a href="<?=e(url('auth/reset.php'))?>">Reset Password</a>, enter the code and choose a new password.</p>
-<a class="btn secondary" href="<?=e(APPLICATION_ORIGIN.'/auth/reset.php#credential='.$credential)?>" target="_blank" rel="noopener noreferrer">Open reset link</a>
+<p>Give this code privately to the verified account holder. They can open <a href="<?=e(url('auth/reset.php?manual=1'))?>">Reset Password</a>, enter the code and choose a new password.</p>
+<a class="btn secondary" href="<?=e(APPLICATION_ORIGIN.'/auth/reset.php?manual=1#credential='.$credential)?>" target="_blank" rel="noopener noreferrer">Open reset link</a>
 <p class="muted">The request becomes Completed after the password is changed. If the code is lost or expires, issue a replacement after verifying identity again.</p></div></section>
 <?php endif;?>
 <section class="panel" id="recovery-form" style="max-width:760px">

@@ -57,9 +57,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Certificate Verification | IRDP</title>
     <link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>">
 </head>
-<body class="simple-page">
+<body class="verification-page">
+    <?php require __DIR__ . '/../includes/institution_header.php'; ?>
+    <main class="simple-page">
     <section class="simple-card">
-        <img class="small-logo" src="<?= e(url('assets/img/irdp-logo.jpg')) ?>" alt="IRDP logo">
         <h2>Certificate Verification</h2>
         <p class="muted">Enter the certificate number and verification code.</p>
 
@@ -95,5 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <a href="<?= e(url('auth/login.php')) ?>">Back to Login</a>
         </p>
     </section>
+    </main>
+<?php require __DIR__ . '/../includes/help.php'; ?>
 </body>
 </html>

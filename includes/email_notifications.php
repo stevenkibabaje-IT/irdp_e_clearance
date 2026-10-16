@@ -37,7 +37,7 @@ function send_notification_email(array $row, array $config): void
     $mail->SMTPSecure = $config['encryption'] === 'none' ? '' : $config['encryption'];
     $mail->SMTPAutoTLS = $config['encryption'] !== 'none';
     $mail->Timeout = max(1, min(30, (int)$config['timeout']));
-    $mail->Timelimit = $mail->Timeout;
+    $mail->getSMTPInstance()->Timelimit = $mail->Timeout;
     $mail->CharSet = 'UTF-8';
     $mail->setFrom($config['from_email'], $config['from_name']);
     $mail->addAddress($row['recipient'], $row['full_name']);
@@ -120,6 +120,8 @@ function update_student_notification_email(PDO $pdo, int $userId, array $input):
         }
         if (strcasecmp((string)$user['email'], (string)$email) !== 0) {
             unique_account_email($pdo, $email);
+            invalidate_student_password_otps($pdo,$userId);
+            $pdo->prepare('UPDATE password_resets SET used_at=NOW() WHERE user_id=? AND used_at IS NULL')->execute([$userId]);
             $pdo->prepare('UPDATE users SET email=?,email_verified_at=NULL WHERE id=?')->execute([$email, $userId]);
             $pdo->prepare('UPDATE students SET email=? WHERE user_id=?')->execute([$email, $userId]);
             $pdo->prepare('UPDATE email_outbox q JOIN notifications n ON n.id=q.notification_id SET q.status="CANCELLED",q.last_error="Student updated their email address." WHERE n.user_id=? AND q.status IN ("PENDING","RETRY","FAILED")')->execute([$userId]);

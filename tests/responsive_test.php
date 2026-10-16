@@ -26,7 +26,7 @@ try {
     $pdo->prepare('UPDATE clearance_period SET mode="MANUAL_OPEN",cycle_id=(SELECT id FROM academic_cycles WHERE label=?) WHERE id=1')->execute([$cycle]);
     $definitions = require __DIR__.'/../config/demo_students.php';
     $records = [];
-    foreach (array_merge(array_slice($definitions, 0, 3), [$definitions[4]]) as $definition) {
+    foreach (array_merge(array_slice($definitions, 0, 3), [$definitions[4], $definitions[5]]) as $definition) {
         $s = $pdo->prepare('SELECT s.*,u.username FROM students s INNER JOIN users u ON u.id=s.user_id WHERE u.username=?');
         $s->execute([$definition['registration_number']]);
         $record = $s->fetch();
@@ -45,6 +45,7 @@ try {
         }
         $records[] = $record;
     }
+    $pdo->prepare('UPDATE clearance_stages SET resubmissions=1 WHERE id=?')->execute([$records[2]['stages'][1]]);
     // A completed workflow makes the transcript available on the dashboard.
     foreach ($records[0]['stages'] as $number => $stageId) {
         $stage = stage_context($pdo, $stageId);
@@ -88,7 +89,8 @@ try {
         'student'=>['username'=>$records[1]['username'], 'password'=>$records[1]['password']],
         'completed'=>['username'=>$records[0]['username'], 'password'=>$records[0]['password']],
         'new_student'=>['username'=>$definitions[3]['registration_number'], 'password'=>demo_student_initial_password($definitions[3])],
-        'officer'=>['username'=>'LIB001', 'password'=>'Mrema@2026'],
+        'officer'=>['username'=>'LIB001', 'password'=>'Mrema@2026', 'full_name'=>$pdo->query('SELECT full_name FROM users WHERE username="LIB001"')->fetchColumn()],
+        'returned_registration'=>$records[2]['registration_number'],
         'finance_officer'=>['username'=>'FIN001','password'=>'Mollel@2026'],
         'finance_student'=>['username'=>$records[3]['username'],'password'=>$records[3]['password']],
         'finance_stage'=>$records[3]['stages'][11],
@@ -96,6 +98,18 @@ try {
         'review_stage'=>$records[2]['stages'][1], 'rejected_stage'=>$records[1]['stages'][1],
         'certificate_request'=>$records[0]['request_id'], 'transcript_token'=>$doc['verification_token'],
     ];
+    // Recovery screens use private anonymous sessions; no real email is sent.
+    foreach ([6=>'otp_session',7=>'reset_session'] as $definitionIndex=>$sessionKey) {
+        $userStmt=$pdo->prepare('SELECT id FROM users WHERE username=?');$userStmt->execute([$definitions[$definitionIndex]['registration_number']]);$recoveryUser=(int)$userStmt->fetchColumn();
+        $recoveryEmail=$sessionKey.'@example.test';$pdo->prepare('UPDATE users SET email=? WHERE id=?')->execute([$recoveryEmail,$recoveryUser]);
+        $fixtureCode='';
+        $challenge=request_student_password_otp($pdo,$recoveryEmail,static function(array $user,string $code) use (&$fixtureCode): void {$fixtureCode=$code;});
+        $state=$sessionKey==='otp_session'
+            ? ['student_otp',['challenge'=>$challenge,'email'=>$recoveryEmail,'requested_at'=>time()]]
+            : ['student_reset',['credential'=>verify_student_password_otp($pdo,$challenge,$fixtureCode),'expires_at'=>time()+600]];
+        $sessionId=bin2hex(random_bytes(24));$fixture[$sessionKey]=$sessionId;
+        file_put_contents($temporary.'/sessions/sess_'.$sessionId,'csrf_token|'.serialize(bin2hex(random_bytes(32))).$state[0].'|'.serialize($state[1]));
+    }
     file_put_contents($temporary.'/fixture.json', json_encode($fixture, JSON_THROW_ON_ERROR));
 
     $socket = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);

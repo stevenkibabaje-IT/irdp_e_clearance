@@ -1,7 +1,9 @@
 // Browser checks give immediate feedback; PHP still validates submitted values.
 (() => {
     const namePattern = /^[\p{L}][\p{L}\p{M} .'’\-]*$/u;
-    document.querySelectorAll('form').forEach(form => {
+    function initializeForms() {
+    document.querySelectorAll('form:not([data-validation-ready])').forEach(form => {
+        form.dataset.validationReady = 'true';
         const validate = input => {
             if (!input.setCustomValidity || input.type === 'hidden') return;
             // Required fields depend on the account role and scheduling mode.
@@ -64,4 +66,7 @@
             if (!form.reportValidity()) event.preventDefault();
         });
     });
+    }
+    initializeForms();
+    document.addEventListener('app:navigated', initializeForms);
 })();

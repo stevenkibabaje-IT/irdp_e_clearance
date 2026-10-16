@@ -1,11 +1,6 @@
 <?php if (current_user()): ?>
             </section>
 
-            <footer class="footer">
-                <span>IRDP Student Clearance System</span>
-                <span>Modern · Secure · Transparent</span>
-                <span>© <?= date('Y') ?> IRDP</span>
-            </footer>
         </main>
     </div>
 <?php else: ?>
@@ -18,6 +13,10 @@
     }
 </script>
 <script src="<?= e(url('assets/js/validation.js?v=' . filemtime(__DIR__ . '/../assets/js/validation.js'))) ?>" defer></script>
+<?php require __DIR__ . '/help.php'; ?>
 <?php if (current_user()): require __DIR__ . '/session_warning.php'; endif; ?>
+<?php if (current_user()): ?>
+<script src="<?= e(url('assets/js/navigation.js?v=' . filemtime(__DIR__ . '/../assets/js/navigation.js'))) ?>" defer></script>
+<?php endif; ?>
 </body>
 </html>

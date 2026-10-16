@@ -18,6 +18,16 @@
     let leaving = false;
     let previousFocus = null;
 
+    document.addEventListener('app:navigated', event => {
+        const state = event.detail?.session;
+        if (!state) return;
+        serverOffset = Number(state.serverTime) * 1000 - performance.now();
+        idleExpires = Number(state.idleExpiresAt) * 1000;
+        absoluteExpires = Number(state.absoluteExpiresAt) * 1000;
+        dialog.dataset.csrfToken = state.csrfToken;
+        updateWarning();
+    });
+
     function signIn(reason = 'expired') {
         if (leaving) return;
         leaving = true;

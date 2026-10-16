@@ -8,7 +8,7 @@ Akaunti hizi ni za majaribio na presentation tu. Kuna demo accounts **15** za ms
 2. Fungua [IRDP e-Clearance](http://localhost/Irdp_e_clearance/).
 3. Bonyeza **Login**, kisha tumia username na password kwenye jedwali hapa chini.
 
-Akaunti zinazokosekana zinatengenezwa moja kwa moja mfumo unapofunguliwa. Password na historia za akaunti zilizopo zinahifadhiwa. Kwa setup ya mkono, endesha `C:\xampp\php\php.exe jobs\migrate.php` ukiwa kwenye folder ya mradi.
+Mfumo wa awali umerejeshwa pamoja na akaunti zote **33**: wanafunzi 21, officers 11 na admin 1. Akaunti sita za sehemu ya **Accounts with email** zipo kwenye database ya sasa. Password za akaunti zilizopo zimehifadhiwa. Akaunti za msingi hutengenezwa wakati wa setup; akaunti nyingine huongezwa kupitia **Admin → Users**.
 
 ## 2. Akaunti za wanafunzi
 
@@ -50,7 +50,7 @@ Akaunti hizi zimeongezwa kwenye database ya sasa kwa demonstration ya notificati
 | ELIZABETH BOAZ MWAMBIJE | IRDP/ODICT/MA26/0009 | MWAMBIJE0009 | ODICT | elizabethboazy15@gmail.com |
 | KHALFANI SALUMU ATHUMAN | IRDP/ODICT/MA26/0016 | ATHUMAN0016 | ODICT | salumukhalfani996@gmail.com |
 | SAIDI SAID JUMA | IRDP/ODICT/MA26/0021 | JUMA0021 | ODICT | sidejuum20@gmail.com |
-| PRISCA MASHAKA MWAKILASA | IRDP/ODICT/MA26/0022 | MWAKILASA0022 | ODICT | Priscamwakilasa7@gmail.com |
+| PRISCA MASHAKA MWAKILASA | IRDP/ODICT/MA26/0022 |  | ODICT | PriscamwakMWAKILASA0022ilasa7@gmail.com |
 
 Academic cycle ya akaunti zote sita ni `2026/2027`. Mwanafunzi anaweza kubadilisha password kupitia **My Profile → Change Password**.
 
@@ -98,7 +98,7 @@ Kila officer anafanya review ya ofisi yake bila kusubiri nyingine.
 7. Log out, ingia kama officer na bonyeza **Review** kwenye mwanafunzi huyo. Ofisi nyingine zina **Approve** au **Reject**. Finance akikuta hakuna deni jingine anachagua **Approve — no other debt**; akikuta deni jingine anaweka control number tofauti na kuhakiki receipt yake.
 8. Rudia kwa ofisi nyingine kwa mpangilio wowote. Ofisi zote 11 zikiidhinisha, mwanafunzi anaona **COMPLETED** na **Download Clearance Transcript** kwenye Dashboard.
 
-**Ada ya kuanza clearance inawahusu ambao bado hawajaanza clearance ya cycle husika.** Walioanza tayari na waliomaliza wanaendelea kutumia clearance na transcript zao bila kuombwa ada hii. Mwanafunzi halipi ada hii mara mbili katika cycle moja. Admin anafungua kipindi cha clearance; Finance and Accounting ndiye anasimamia ada, control number na uthibitisho wa malipo.
+**Namba moja ya usajili inaanzisha clearance mara moja tu.** Ada ya kuanza inawahusu ambao hawajawahi kuanza clearance. Walioanza tayari na waliomaliza wanaendelea kutumia clearance na transcript zao bila kuombwa ada nyingine, hata academic cycle ikibadilika. Ombi lililofutwa halifungui nafasi ya kuanzisha jingine; wasiliana na Admin. Admin anafungua kipindi cha clearance; Finance and Accounting ndiye anasimamia ada, control number na uthibitisho wa malipo.
 
 Ili kufungua akaunti mbili kwa wakati mmoja, tumia browser tofauti au dirisha la Incognito/Private kwa akaunti ya pili. Tabs za kawaida katika browser moja zinatumia login ileile.
 
@@ -133,7 +133,7 @@ Mfumo unaonyesha onyo dakika 1 kabla ya session kuisha. Bonyeza **Continue sessi
 Endesha ukiwa kwenye folder ya mradi:
 
 ```powershell
-C:\xampp\php\php.exe tests\demo_students_test.php "mysql:host=127.0.0.1;port=3306;charset=utf8mb4"
+& 'C:/xampp1/php/windowsXamppPhp/php.exe' -n -d extension_dir=C:/xampp1/php/ext -d extension=pdo_mysql tests/documented_demo_accounts_test.php
 ```
 
-Test inahakiki akaunti zote 15, login, passwords, taarifa za README na kutorudia accounts wakati wa upgrade. Inatumia database ya majaribio inayofutwa baada ya kumaliza.
+Test hii inasoma database ya sasa bila kubadilisha password: inahakiki akaunti zote 33 dhidi ya mwongozo huu na kuthibitisha schema ya awali. Password iliyobadilishwa na mtumiaji itaripotiwa kama tofauti; haitarejeshwa moja kwa moja. Ukiongeza `-d extension=curl` kabla ya jina la test na username baada yake, test itapima login na dashboard kupitia Apache pia. Vipimo vya HTTP huhifadhi rekodi za kawaida za login; tumia akaunti chache kwa mara ili kuheshimu ukomo wa majaribio ya kuingia.

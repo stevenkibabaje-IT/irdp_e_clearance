@@ -115,7 +115,7 @@ function resize_profile_image(string $source,string $destination): void {
             throw new RuntimeException('Profile image could not be saved.');
         }
     } elseif(PHP_OS_FAMILY==='Windows') {
-        $process=proc_open(['powershell.exe','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',__DIR__.'/resize_profile.ps1','-Source',$source,'-Destination',$destination],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
+        $process=proc_open(['powershell.exe','-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',__DIR__.'/resize_profile.ps1','-Source',$source,'-Destination',$destination],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
         if(!is_resource($process)) {
             throw new RuntimeException('Image resizing is unavailable.');
         }

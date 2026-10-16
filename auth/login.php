@@ -76,27 +76,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="icon" type="image/png" href="<?= e(url('assets/img/irdp-logo-web.png')) ?>">
     <link rel="preload" href="<?= e(url('assets/fonts/roboto-latin.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="<?= e(url('assets/css/style.css?v=' . filemtime(__DIR__.'/../assets/css/style.css'))) ?>">
-    <link rel="preload" as="image" href="<?= e(url('assets/img/irdp-campus-hd.jpg')) ?>">
 </head>
 <body class="login-page">
     <a class="skip-link" href="#main-content">Skip to login / Nenda kwenye login</a>
-    <div class="login-background" aria-hidden="true"></div>
-    <div class="login-overlay" aria-hidden="true"></div>
+    <?php $institutionHome = true; require __DIR__ . '/../includes/institution_header.php'; ?>
 
     <main class="login-layout">
         <section class="login-brand">
-            <div class="login-brand-row">
-                <img
-                    class="login-logo irdp-emblem"
-                    src="<?= e(url('assets/img/irdp-logo-web.png')) ?>"
-                    width="110" height="110"
-                    alt="Institute of Rural Development Planning (IRDP) logo"
-                >
-                <div>
-                    <div class="eyebrow brand-eyebrow">Institute of Rural Development Planning</div>
-                    <h2 style="margin:4px 0 0; font-size:1.75rem;">IRDP Student Clearance System</h2>
-                </div>
-            </div>
+            <div class="eyebrow brand-eyebrow">Student e-Clearance</div>
 
             <h1>Welcome Back!</h1>
             <p>
@@ -114,10 +101,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <section class="login-card" id="main-content" tabindex="-1">
             <?php require __DIR__.'/../includes/accessibility.php'; ?>
-            <div class="login-mobile-brand">
-                <img class="irdp-emblem" src="<?= e(url('assets/img/irdp-logo-web.png')) ?>" width="88" height="88" alt="Institute of Rural Development Planning (IRDP) logo">
-                <strong>IRDP Student Clearance System</strong>
-            </div>
             <h2>Login to Your Account</h2>
             <p class="muted">Enter your credentials to continue.</p>
 
@@ -193,5 +176,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             togglePassword.title = visible ? 'Show password' : 'Hide password';
         });
     </script>
+<?php require __DIR__ . '/../includes/help.php'; ?>
 </body>
 </html>

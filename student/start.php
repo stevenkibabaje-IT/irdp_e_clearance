@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
 
-/** Start one request per academic cycle with all office reviews available. */
+/** Start one clearance per registration with all office reviews available. */
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_role('STUDENT');
 
 $u = current_user();
 $period=clearance_period_state($pdo);
-$existing = $period['academic_cycle'] ? get_clearance_for_cycle($pdo, (int)$u['student_id'], (string)$period['academic_cycle']) : null;
+$existing = get_student_clearance($pdo, (int)$u['student_id']);
 
 if ($existing) {
     redirect('student/status.php');
@@ -33,8 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$studentLock->fetchColumn()) {
             throw new RuntimeException('Student account not found.');
         }
-        if (get_clearance_for_cycle($pdo, (int)$u['student_id'], $academicYear)) {
-            throw new ValidationException(['academic_year'=>'A clearance request already exists for this cycle. Continue the existing clearance.']);
+        if (get_student_clearance($pdo, (int)$u['student_id'])) {
+            throw new ValidationException(['academic_year'=>'This registration number already has a clearance request. Continue the existing clearance.']);
         }
 
         require_clearance_period($pdo, $academicYear, true);
@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (PDOException $e) {
         if ($pdo->inTransaction()) { $pdo->rollBack(); }
         if ((int)($e->errorInfo[1]??0)===1062) {
-            $errors=['academic_year'=>'A clearance request already exists for this cycle. Continue the existing clearance.'];
+            $errors=['academic_year'=>'This registration number already has a clearance request. Continue the existing clearance.'];
             $error=$errors['academic_year'];
         } else {
             $error=user_safe_error($e);
@@ -141,7 +141,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div>
         <span class="eyebrow">NEW REQUEST</span>
         <h1>Start Clearance</h1>
-        <p class="muted">All 11 offices can review independently. Clearance completes after every office approves.</p>
+        <p class="muted">One clearance per registration number. Continue the same request until all 11 offices approve.</p>
     </div>
 </div>
 

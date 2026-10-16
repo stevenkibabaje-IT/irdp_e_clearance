@@ -1,6 +1,26 @@
 <?php
 declare(strict_types=1);
 
+/** Update only the authenticated student's contact number in both account records. */
+function update_student_phone(PDO $pdo, int $userId, array $input): void
+{
+    $phone = student_phone_number($input);
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare('SELECT s.id,s.phone FROM students s INNER JOIN users u ON u.id=s.user_id INNER JOIN roles r ON r.id=u.role_id WHERE s.user_id=? AND u.active=1 AND r.name="STUDENT" FOR UPDATE');
+        $stmt->execute([$userId]);
+        $student = $stmt->fetch();
+        if (!$student) { throw new RuntimeException('An active student account is required.'); }
+        $pdo->prepare('UPDATE students SET phone=? WHERE id=? AND user_id=?')->execute([$phone,$student['id'],$userId]);
+        $pdo->prepare('UPDATE users SET phone=? WHERE id=?')->execute([$phone,$userId]);
+        audit($pdo,'STUDENT_PHONE_UPDATED',$userId,null,'Student updated their contact phone number.');
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) { $pdo->rollBack(); }
+        throw $error;
+    }
+}
+
 /** Create and update user accounts and their role-specific records. */
 function create_account(PDO $pdo,array $input,int $admin): int {
     $username=text_input($input,'username',100);

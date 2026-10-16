@@ -7,15 +7,10 @@ require_role('STUDENT');
 $u = current_user();
 $student = get_student($pdo, (int) $u['student_id']);
 $period=clearance_period_state($pdo);
-$request = $period['academic_cycle']
-    ? get_clearance_for_cycle($pdo,(int)$u['student_id'],(string)$period['academic_cycle'])
-    : get_latest_clearance($pdo,(int)$u['student_id']);
+$request = get_student_clearance($pdo,(int)$u['student_id']);
 $stages = $request ? get_clearance_stages($pdo, (int) $request['id']) : [];
 $entryFee = !$request && $period['cycle_id'] ? clearance_fee_for_cycle($pdo,(int)$u['student_id'],(int)$period['cycle_id']) : null;
 $feeApproved = $entryFee && $entryFee['status']==='APPROVED';
-$completed = count(array_filter($stages, static fn (array $stage): bool => $stage['status'] === 'APPROVED'));
-$total = max(11, count($stages));
-$progress = (int) round(($completed / $total) * 100);
 
 $transcript=($request&&$request['status']==='COMPLETED')?transcript_for_student($pdo,(int)$u['student_id'],(int)$request['id']):null;
 $transcript=($transcript&&$transcript['status']==='VALID')?$transcript:null;
@@ -23,15 +18,11 @@ $transcript=($transcript&&$transcript['status']==='VALID')?$transcript:null;
 $pageTitle = 'Student Dashboard';
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<div class="page-heading">
+<div class="page-heading student-dashboard-heading">
     <div>
         <span class="eyebrow">STUDENT</span>
-        <h1>Welcome, <?= e($student['full_name'] ?? $u['full_name']) ?></h1>
-        <a href="<?= e(url('student/profile.php')) ?>"><img class="profile-avatar" src="<?= e(profile_picture_url($student)) ?>" width="80" height="80" alt="My profile picture"></a>
-        <p class="muted">
-            <?= e($student['registration_number'] ?? '') ?> ·
-            <?= e($student['department'] ?? 'Department not set') ?>
-        </p>
+        <h1>My Dashboard</h1>
+        <p class="muted">Your clearance at a glance.</p>
     </div>
 
     <?php if (!$request && $period['is_open']): ?>
@@ -47,61 +38,17 @@ require_once __DIR__ . '/../includes/header.php';
 <section class="panel"><h2>Clearance entry fee</h2><p><strong>TSh <?= e(number_format((float)($entryFee['amount']??clearance_fee_amount($pdo,(int)$period['cycle_id'])),2)) ?></strong> · <?= e($entryFee?str_replace('_',' ',$entryFee['status']):'NOT REQUESTED') ?></p><p><?= $feeApproved?'Your payment is approved. You can now start clearance.':'Request a control number, pay the fee and upload your receipt. Finance approval unlocks Start Clearance.' ?></p><a class="btn secondary" href="<?= e(url('student/clearance_fee.php')) ?>">View fee / payment details</a></section>
 <?php endif; ?>
 
-<section class="panel">
-    <div class="panel-head"><h2>Clearance Status</h2><span class="<?= e($period['is_open']?'badge success':'badge muted') ?>"><?= e($period['is_open']?'CLEARANCE OPEN':'CLEARANCE CLOSED') ?></span></div>
-    <?php if($period['is_open']): ?><p>Academic cycle: <strong><?= e($period['academic_cycle']) ?></strong>. Opening: <?= e($period['opens_at']?:'Manual') ?> · Closing: <?= e($period['closes_at']?:'Manual') ?></p><?php else: ?><p><?= e(CLEARANCE_CLOSED_MESSAGE) ?></p><?php endif; ?>
-    <?php if($transcript): ?><a class="btn gold" href="<?= e(url('transcripts/download.php')) ?>"><?= icon('download') ?> Download Clearance Transcript</a><?php elseif($request&&$request['status']!=='COMPLETED'): ?><p class="muted">Clearance transcript access will be available after successful completion of the clearance process.</p><?php endif; ?>
-</section>
-
-<?php foreach ($stages as $financeStage): if ((int)$financeStage['step_number'] !== 11 || !isset(finance_payment_details($financeStage)['control_number'])) { continue; } ?>
-    <section class="panel">
-        <?php finance_payment_form($financeStage); ?>
-    </section>
-<?php endforeach; ?>
-
-<?php foreach ($stages as $rejectedStage): if ($rejectedStage['status'] !== 'REJECTED' || (int)$rejectedStage['step_number'] === 11) { continue; } ?>
-    <section class="panel rejection-action">
-        <h2>Action required: <?= e($rejectedStage['office']) ?></h2>
-        <p><strong><?= e($rejectedStage['title']) ?> was rejected.</strong> <?= e($rejectedStage['comments']) ?></p>
-        <p><?= e($rejectedStage['corrective_instructions'] ?: 'Contact the office for the correction required.') ?></p>
-        <a class="btn primary" href="<?= e(url('student/status.php#stage-'.(int)$rejectedStage['id'])) ?>">Respond / Upload Evidence</a>
-    </section>
-<?php endforeach; ?>
-
-<div class="stats-grid">
-    <div class="stat-card info">
-        <div class="stat-icon"><?= icon('clipboard-check') ?></div>
-        <span>Current Status</span>
-        <strong><?= e($request && $request['status']==='PAUSED'?'Action Required':($request['status'] ?? 'NOT_STARTED')) ?></strong>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-icon"><?= icon('check-circle') ?></div>
-        <span>Completed Stages</span>
-        <strong><?= $completed ?> / <?= $total ?></strong>
-    </div>
-
-    <div class="stat-card warning">
-        <div class="stat-icon"><?= icon('clock') ?></div>
-        <span>Pending Actions</span>
-        <strong><?= count(array_filter($stages, static fn (array $stage): bool => in_array($stage['status'], ['PENDING', 'IN_REVIEW'], true))) ?></strong>
-    </div>
-
-    <div class="stat-card purple">
-        <div class="stat-icon"><?= icon('chart') ?></div>
-        <span>Overall Progress</span>
-        <strong><?= $progress ?>%</strong>
-    </div>
-</div>
-
-<div class="two-col">
-    <section class="panel">
-        <div class="panel-head">
-            <h2>Clearance Progress</h2>
+    <section class="panel student-clearance-panel">
+        <div class="panel-head student-clearance-head">
+            <div>
+                <h2>Clearance Overview</h2>
+                <p class="muted student-clearance-cycle"><?= icon('calendar') ?> <?= e($request['academic_year'] ?? $period['academic_cycle'] ?? 'Academic cycle not set') ?> <span aria-hidden="true">&middot;</span> <?= e($request && $request['academic_year'] !== $period['academic_cycle'] ? 'Existing clearance' : ($period['is_open'] ? 'Clearance open' : 'Clearance closed')) ?></p>
+            </div>
             <?php if ($request): ?>
-                <span class="<?= e(badge_class($request['status'])) ?>"><?= e($request['status']) ?></span>
+                <span class="<?= e(badge_class($request['status'])) ?>"><?= e(humanize_status($request['status'])) ?></span>
             <?php endif; ?>
         </div>
+        <?php if (!$period['is_open']): ?><p class="student-clearance-notice"><?= e(CLEARANCE_CLOSED_MESSAGE) ?></p><?php elseif ((!$request || $request['academic_year'] === $period['academic_cycle']) && ($period['opens_at'] || $period['closes_at'])): ?><p class="student-clearance-notice">Opening: <?= e($period['opens_at'] ?: 'Manual') ?> &middot; Closing: <?= e($period['closes_at'] ?: 'Manual') ?></p><?php endif; ?>
 
         <?php if (!$request): ?>
             <div class="empty">
@@ -109,42 +56,43 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="btn primary" href="<?= e(url($feeApproved?'student/start.php':'student/clearance_fee.php')) ?>"><?= $feeApproved?'Start Clearance':'Pay Clearance Fee' ?></a>
             </div>
         <?php else: ?>
-            <?php clearance_progress($stages); ?>
-
-            <h3 class="office-status-heading">Office Status</h3>
-            <div class="timeline office-status-grid">
+            <div class="student-clearance-layout">
+                <section class="student-progress-overview" aria-labelledby="student-progress-heading">
+                    <h3 id="student-progress-heading">Clearance Progress</h3>
+                    <?php clearance_progress($stages); ?>
+                    <?php if ($transcript): ?>
+                        <a class="btn primary small student-transcript-link" href="<?= e(url('transcripts/download.php')) ?>"><?= icon('download') ?> Download Transcript</a>
+                    <?php endif; ?>
+                </section>
+                <section class="student-office-overview" aria-labelledby="office-status-heading">
+                    <div class="student-office-heading"><h3 id="office-status-heading">Office Status</h3><span><?= count($stages) ?> offices</span></div>
+                    <ol class="office-status-grid">
                 <?php foreach ($stages as $stage): ?>
-                    <div class="timeline-item <?= strtolower($stage['status']) ?>">
-                        <div class="dot" aria-label="Office <?= (int) $stage['step_number'] ?>">
-                            <?= icon($stage['status'] === 'APPROVED' ? 'check-circle' : ($stage['status'] === 'REJECTED' ? 'alert-circle' : 'clock')) ?>
+                    <?php $financePayment = (int)$stage['step_number'] === 11 ? finance_payment_details($stage) : []; ?>
+                    <li class="office-status-item <?= e(strtolower($stage['status'])) ?><?= $stage['status'] === 'REJECTED' ? ' rejection-action' : '' ?>">
+                        <div class="office-status-row">
+                            <span class="office-status-number" aria-hidden="true"><?= (int)$stage['step_number'] ?></span>
+                            <div class="office-status-copy"><strong><?= e($stage['office']) ?></strong><span class="office-status-badge <?= e(badge_class($stage['status'])) ?>"><?= icon($stage['status'] === 'APPROVED' ? 'check-circle' : ($stage['status'] === 'REJECTED' ? 'alert-circle' : 'clock')) ?> <?= e(humanize_status($stage['status'])) ?></span></div>
                         </div>
-                        <div>
-                            <strong><?= e($stage['title']) ?></strong>
-                            <small>
-                                <?= e($stage['office']) ?> ·
-                                <span class="<?= e(badge_class($stage['status'])) ?>"><?= e($stage['status']) ?></span>
-                            </small>
-
-                            <?php if ($stage['status'] === 'REJECTED'): ?>
-                                <p class="danger-text">Reason: <?= e($stage['comments']) ?></p>
-                                <a class="btn primary small" href="<?= e(url('student/status.php#stage-'.(int)$stage['id'])) ?>">Respond / Upload Evidence</a>
-                            <?php endif; ?>
-                        </div>
-                    </div>
+                        <?php if ($financePayment['control_number'] ?? ''): ?>
+                            <details class="office-status-details">
+                                <summary><?= icon('receipt') ?> <?= $stage['status'] === 'APPROVED' ? 'Payment details' : 'Payment / Receipt' ?></summary>
+                                <?php finance_payment_form($stage); ?>
+                            </details>
+                        <?php elseif ($stage['status'] === 'REJECTED'): ?>
+                            <details class="office-status-details">
+                                <summary><?= icon('alert-circle') ?> Correction / Upload Evidence</summary>
+                                <p><?= e($stage['comments']) ?></p>
+                                <p><?= e($stage['corrective_instructions'] ?: 'Contact the office for the correction required.') ?></p>
+                                <a class="office-response-link" href="<?= e(url('student/status.php#stage-'.(int)$stage['id'])) ?>"><?= icon('upload') ?> Respond / Upload Evidence</a>
+                            </details>
+                        <?php endif; ?>
+                    </li>
                 <?php endforeach; ?>
+                    </ol>
+                </section>
             </div>
         <?php endif; ?>
     </section>
 
-    <section>
-        <div class="panel">
-            <h2>Quick Actions</h2>
-            <div class="quick-grid">
-                <a class="quick-card" href="<?= e(url('student/status.php')) ?>"><?= icon('clipboard-check') ?><strong>My Clearance</strong><br><small>Track all stages</small></a>
-                <a class="quick-card" href="<?= e(url('student/notifications.php')) ?>"><?= icon('bell') ?><strong>Notifications</strong><br><small>View decisions</small></a>
-                <a class="quick-card" href="<?= e(url('student/notifications.php')) ?>"><?= icon('info') ?><strong>Updates</strong><br><small>Recent activity</small></a>
-            </div>
-        </div>
-    </section>
-</div>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

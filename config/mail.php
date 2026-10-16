@@ -15,6 +15,15 @@ function notification_mail_config(): array
         if (!is_array($local)) { throw new RuntimeException('SMTP configuration must return an array.'); }
         $config = array_replace($config, $local);
     }
+    // Deployment/test processes can supply SMTP settings without changing private files.
+    // A different host must not inherit credentials intended for the private host.
+    if (getenv('IRDP_SMTP_HOST')!==false) { $config['username']='';$config['password']=''; }
+    foreach (['host','port','encryption','username','password','from_email','from_name','timeout'] as $key) {
+        $value=getenv('IRDP_SMTP_'.strtoupper($key));
+        if ($value!==false) { $config[$key]=$value; }
+    }
+    $enabled=getenv('IRDP_SMTP_ENABLED');
+    if ($enabled!==false) { $config['enabled']=in_array(strtolower($enabled),['1','true'],true); }
     return $config;
 }
 

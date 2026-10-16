@@ -9,6 +9,7 @@ require_once __DIR__ . '/clearance_workflow.php';
 require_once __DIR__ . '/finance_payments.php';
 require_once __DIR__ . '/clearance_fees.php';
 require_once __DIR__ . '/authentication.php';
+require_once __DIR__ . '/student_password_otp.php';
 require_once __DIR__ . '/uploads.php';
 require_once __DIR__ . '/imports.php';
 require_once __DIR__ . '/forms.php';
@@ -353,6 +354,14 @@ function get_clearance_for_cycle(PDO $pdo, int $studentId, string $academicCycle
     $stmt=$pdo->prepare('SELECT * FROM clearance_requests WHERE student_id=? AND academic_year=? LIMIT 1');
     $stmt->execute([$studentId,$academicCycle]);
     return $stmt->fetch()?:null;
+}
+
+/** A registration retains its existing clearance across cycles and cancellations. */
+function get_student_clearance(PDO $pdo, int $studentId): ?array
+{
+    $stmt = $pdo->prepare('SELECT * FROM clearance_requests WHERE student_id = ? ORDER BY id DESC LIMIT 1');
+    $stmt->execute([$studentId]);
+    return $stmt->fetch() ?: null;
 }
 
 function get_clearance_stages(PDO $pdo, int $requestId): array

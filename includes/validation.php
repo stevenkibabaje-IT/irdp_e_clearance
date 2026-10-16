@@ -31,6 +31,17 @@ function positive_id(mixed $value, string $field = 'id'): int {
     }
     return (int) $value;
 }
+
+/** Accept readable contact numbers; store a consistent international form. */
+function student_phone_number(array $input): string {
+    $phone = preg_replace('/[ ()-]/', '', text_input($input, 'phone', 40));
+    if (preg_match('/^0[1-9][0-9]{8}$/D', $phone)) { return '+255'.substr($phone, 1); }
+    if (preg_match('/^255[1-9][0-9]{8}$/D', $phone)) { return '+'.$phone; }
+    if (!preg_match('/^\+[1-9][0-9]{7,14}$/D', $phone)) {
+        throw new ValidationException(['phone'=>'Enter a valid phone number, e.g. 0712345678 or +255712345678.']);
+    }
+    return $phone;
+}
 /** Respond to malformed URL record identifiers without an uncaught server error. */
 function request_record_id(mixed $value, string $field = 'id'): int {
     try { return positive_id($value, $field); }

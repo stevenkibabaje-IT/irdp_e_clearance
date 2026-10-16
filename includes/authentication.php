@@ -16,6 +16,7 @@ function request_ip(): string {
 }
 function create_reset_credential(PDO $pdo,int $userId,?int $adminId,string $identityReference=''): string {
     $token=bin2hex(random_bytes(32));
+    invalidate_student_password_otps($pdo,$userId);
     $pdo->prepare('UPDATE password_resets SET used_at=NOW() WHERE user_id=? AND used_at IS NULL')->execute([$userId]);
     $pdo->prepare('INSERT INTO password_resets(user_id,token_hash,expires_at,issued_by,identity_reference) VALUES (?,?,DATE_ADD(NOW(),INTERVAL 30 MINUTE),?,?)')->execute([$userId,hash('sha256',$token),$adminId,$identityReference?:null]);
     if($adminId) {
@@ -31,7 +32,7 @@ function request_password_recovery(PDO $pdo,string $username): void {
     } catch(RuntimeException $e) {
         return;
     }
-    $s=$pdo->prepare('SELECT id FROM users WHERE username=? AND active=1');
+    $s=$pdo->prepare('SELECT u.id FROM users u INNER JOIN roles r ON r.id=u.role_id WHERE u.username=? AND u.active=1 AND r.name<>"STUDENT"');
     $s->execute([$username]);
     $user=$s->fetch();
     if(!$user) {
@@ -169,18 +170,26 @@ function reset_password(PDO $pdo,string $token,mixed $password,mixed $confirmati
             throw new RuntimeException('Invalid or expired reset credential.');
         }
         // Account lock serializes token issuance, password changes and resets for this user.
-        $s=$pdo->prepare('SELECT id,active FROM users WHERE id=? FOR UPDATE');
+        $s=$pdo->prepare('SELECT id,active,email,auth_version FROM users WHERE id=? FOR UPDATE');
         $s->execute([$userId]);
         $user=$s->fetch();
         $s=$pdo->prepare('SELECT p.id FROM password_resets p WHERE p.token_hash=? AND p.used_at IS NULL AND p.expires_at>NOW() AND NOT EXISTS (SELECT 1 FROM password_reset_requests r WHERE r.reset_id=p.id AND r.status<>"ISSUED") FOR UPDATE');
         $s->execute([hash('sha256',$token)]);
-        if(!$user || !(int)$user['active'] || !$s->fetchColumn()) {
+        $resetId=$s->fetchColumn();
+        if(!$user || !(int)$user['active'] || !$resetId) {
+            throw new RuntimeException('Invalid or expired reset credential.');
+        }
+        $s=$pdo->prepare('SELECT email,auth_version FROM student_password_otps WHERE reset_id=? LIMIT 1');
+        $s->execute([$resetId]);$otpGrant=$s->fetch();
+        if($otpGrant && (strcasecmp((string)$user['email'],$otpGrant['email'])!==0 || (int)$user['auth_version']!==(int)$otpGrant['auth_version'])) {
             throw new RuntimeException('Invalid or expired reset credential.');
         }
         $pdo->prepare('UPDATE users SET password_hash=?,auth_version=auth_version+1,force_password_change=0 WHERE id=?')->execute([hash_new_password($new),$userId]);
         $pdo->prepare('UPDATE password_resets SET used_at=NOW() WHERE user_id=? AND used_at IS NULL')->execute([$userId]);
+        invalidate_student_password_otps($pdo,(int)$userId);
         $pdo->prepare('UPDATE password_reset_requests SET status="COMPLETED",completed_at=NOW() WHERE user_id=? AND status IN ("PENDING","ISSUED")')->execute([$userId]);
         audit($pdo,'PASSWORD_RESET',(int)$userId,null,'Password reset completed; existing sessions revoked.');
+        if($otpGrant) {notify($pdo,(int)$userId,'Password updated','Your password was reset using your email OTP. If you did not do this, contact IRDP clearance support immediately.');}
         $pdo->commit();
     } catch(Throwable $e) {
         if($pdo->inTransaction()) {
@@ -204,6 +213,7 @@ function change_password(PDO $pdo,int $userId,mixed $current,mixed $new,mixed $c
         if(password_verify($password,$hash)) {throw new ValidationException(['password'=>'Choose a password different from your current password.']);}
         $pdo->prepare('UPDATE users SET password_hash=?,auth_version=auth_version+1,force_password_change=0 WHERE id=?')->execute([hash_new_password($password),$userId]);
         $pdo->prepare('UPDATE password_resets SET used_at=NOW() WHERE user_id=? AND used_at IS NULL')->execute([$userId]);
+        invalidate_student_password_otps($pdo,$userId);
         $pdo->prepare('UPDATE password_reset_requests SET status="COMPLETED",completed_at=NOW() WHERE user_id=? AND status IN ("PENDING","ISSUED")')->execute([$userId]);
         audit($pdo,'PASSWORD_CHANGED',$userId,null,'Existing sessions revoked.');
         $pdo->commit();

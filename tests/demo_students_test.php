@@ -123,6 +123,14 @@ try{
         change_password($pdo,(int)$record['id'],$temporary,$record['password'],$record['password']);
         echo 'PASS: '.$record['username']." login, dashboard, optional password, privacy and duplicate-cycle checks\n";
     }
+    // Repeated setup must preserve profile corrections made after initial seeding.
+    $pdo->prepare('UPDATE students SET programme=?,year_of_study=? WHERE user_id=?')->execute(['BTCICT','2027/2028',$records[0]['id']]);
+    $correctedStudent=$pdo->query('SELECT * FROM students WHERE user_id='.(int)$records[0]['id'])->fetch();
+    seed_demo_accounts($pdo);
+    demo_check($pdo->query('SELECT * FROM students WHERE user_id='.(int)$records[0]['id'])->fetch()===$correctedStudent,'Repeated demo seeding overwrote an existing student profile.');
+    ensure_database_ready($pdo,true);
+    demo_check($pdo->query('SELECT * FROM students WHERE user_id='.(int)$records[0]['id'])->fetch()===$correctedStudent,'Forced setup overwrote an existing student profile.');
+    echo "PASS: repeated demo seeding and setup preserve corrected student profiles\n";
     echo "PASS: all fifteen demo students verified independently\n";
 }catch(Throwable $error){fwrite(STDERR,'FAIL: '.$error->getMessage().PHP_EOL);$exit=1;}
 finally{

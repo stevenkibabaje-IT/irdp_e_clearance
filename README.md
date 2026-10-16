@@ -2,6 +2,10 @@
 
 A local PHP/MySQL/XAMPP implementation of the IRDP student clearance workflow.
 
+The current schema has **30 tables**, including the student email OTP recovery table. Nine unused legacy-feature tables were
+removed on 13 October 2026; existing features and all 33 accounts were preserved.
+See [cleanup and verification details](docs/NINE_TABLE_CLEANUP.md).
+
 Contributions are welcome through forks and pull requests at [stevenkibabaje-IT/irdp_e_clearance](https://github.com/stevenkibabaje-IT/irdp_e_clearance). See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks and submission instructions.
 
 The theme uses IRDP green `#60BA6D`, dark-green accents `#075D39`, deep-green headings `#06452C`, a light background and white surfaces. Roboto is hosted locally under `assets/fonts`, with its included SIL Open Font License. Login, landing page and shared dashboards use the same green theme; light-green buttons use dark text for contrast.
@@ -14,9 +18,9 @@ The layout adapts to phones, tablets and desktops. At widths up to 1024px, navig
 
 **View Certificate** has been removed from the student Dashboard and My Clearance. Its former URL returns authenticated students and administrators to their dashboard. Completed students can still download their Clearance Transcript. Historical certificate records, automatic issuance, PDF downloads and verification are retained for compatibility.
 
-Select the **accessibility icon** at the bottom right of the landing page, login page or inside the system to enlarge text up to 200%, enable high contrast, or reset the display. Preferences are saved in this browser. The login password field uses an eye icon to show or hide the password; icon controls retain screen-reader labels and keyboard access. Keyboard users can use the skip link, Tab/Enter, and Escape to close mobile navigation. Form labels, help and errors are linked for screen readers; reduced-motion preferences are respected.
+Select **Accessibility** at the bottom left to enlarge text up to 200%, enable high contrast, or reset the display. Its green/yellow trigger becomes an icon on phones; the panel scrolls within narrow and landscape screens. Preferences are saved in this browser. Need help occupies the opposite corner. The login password field uses an eye icon to show or hide the password; controls retain screen-reader labels and keyboard access. Keyboard users can use the skip link, Tab/Enter, and Escape to close panels or mobile navigation. Form labels, help and errors are linked for screen readers; reduced-motion preferences are respected.
 
-New passwords must contain **8–64 characters**, including passwords longer than 15 characters. Spaces and Unicode are supported; common passwords, simple repeats and predictable service passwords are rejected using a local blocklist. Existing passwords still work at login. Students go directly to their dashboard even when a legacy forced-change flag is set. **My Profile → Change Password** is optional and requires the current password. Staff first-login requirements are preserved. Newly created accounts, password changes and resets use Argon2id (PHP Argon2id support required). Password changes revoke existing sessions. Run `php tests/password_accessibility_test.php` for focused checks.
+New passwords must contain **8–64 characters**, including passwords longer than 15 characters. Spaces and Unicode are supported; common passwords, simple repeats and predictable service passwords are rejected using a local blocklist. Existing passwords still work at login. Students go directly to their dashboard even when a legacy forced-change flag is set. **Change Password** in the top-right account menu is optional and requires the current password. Staff first-login requirements are preserved. Newly created accounts, password changes and resets use Argon2id (PHP Argon2id support required). Password changes revoke existing sessions. Run `php tests/password_accessibility_test.php` for focused checks.
 
 The administration menu includes Dashboard, Users, Password Reset Requests, Programmes, Clearance Period, Clearance Transcripts, Offices, Departments, Workflow, Clearance Monitoring and Reports. Emergency Review, Continuity, Escalations and Appeals, Settings and Authority, and Email Notifications controls have been removed. Older URLs return staff to their normal dashboard without processing actions.
 
@@ -32,7 +36,7 @@ When an office rejects a stage, the student dashboard shows **Upload evidence an
 
 For a resubmission with files, the officer uses **Approve evidence and continue** after verifying that the evidence resolves all office requirements. For a response without attached files, **Approve correction and continue** allows the officer to confirm corrections verified with the office. Both record remaining amounts as cleared, missing items as available, and the office decision as cleared. Earlier rejection details remain in the review history. Submitting a response alone does not approve the stage; the authorized officer must verify and approve it. Ordinary approval still requires the office fields to show cleared requirements.
 
-Profile pictures: open **My Profile**, choose a JPG or PNG up to 5 MB, review the preview, and click **Save picture**. The saved portrait appears on the profile, dashboard and account header. XAMPP upload limits are configured in `.htaccess`; other PHP servers need `upload_max_filesize` of at least 6M and `post_max_size` of at least 32M.
+Open **My Profile** from the top-right account menu to see academic details, maintain your phone/email and change your picture. **Save phone** validates national/international contact formats and updates only the signed-in student's account and student record together. For pictures, choose a JPG or PNG up to 5 MB, review the preview, and click **Save picture**; the saved portrait appears in the profile and account header. XAMPP upload limits are configured in `.htaccess`; other PHP servers need `upload_max_filesize` of at least 6M and `post_max_size` of at least 32M.
 
 On Windows, verify that resizing preserves the actual image content with `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/profile_image_test.ps1`. This checks large portrait/landscape images and small images, including their colours. Pictures saved as blank images by the earlier resizing bug must be uploaded again from the original file.
 
@@ -40,7 +44,9 @@ The landing and login background uses a 2048 × 1536 campus photograph from [thi
 
 See [feature operations and verification](docs/FEATURES.md) for clearance, recovery, evidence, profile and import operations, migration instructions, dependencies and verification. Run tests/features_test.php against an isolated test server before deployment.
 
-Forgot password: users submit their username / registration number from the login page's Forgot Password link. Admins see the request under **Password Reset Requests** (also linked on their dashboard), verify identity, then approve and issue a reset code. The user enters that code on **Reset Password** and chooses a new password. Requests are marked Completed automatically; rejected requests and expired/replacement codes remain visible in the admin history. This works with email disabled.
+Forgot password: students enter their registered email through **Forgot Password → Send OTP**, enter the six-digit code through **Verify OTP** in the same browser within 10 minutes, then choose a new password within 10 minutes of verification. Codes are hashed, single use and limited to five attempts; resends require 60 seconds and replace the previous code. Delivery requires working SMTP and uses the configuration in [the email setup guide](README_EMAIL_NOTIFICATIONS.md). Unknown, inactive and staff addresses receive the same public response. Password resets revoke existing sessions and require a new login. Run `php tests/student_password_otp_test.php` for isolated database, local SMTP and HTTP checks.
+
+Staff and students without access to their registered email contact support for administrator-assisted recovery. An administrator verifies identity under **Password Reset Requests** and issues a private code valid for 30 minutes. The account holder uses `auth/reset.php?manual=1` to enter that code and choose a new password. Completed, rejected and expired/replacement requests remain visible in the admin history. This support path works with email disabled.
 
 
 ## Normal installation
@@ -53,7 +59,7 @@ Forgot password: users submit their username / registration number from the logi
 
 `setup.php` is retained only as a manual diagnostics/re-initialization page; it is not part of the normal login flow.
 
-After login, Students, Officers, Supervisors and Administrators can use **Log out** in the top bar or sidebar. The top-bar button is also available on mobile and returns users to the login page after ending their session.
+After login, Students, Officers, Supervisors and Administrators can use **Log out** in the top-right account menu, including on mobile. It returns users to the login page after ending their session.
 
 ### Session security on localhost
 
@@ -145,7 +151,7 @@ Administrators control the period from **Clearance Period**. Students can still 
 
 ## Clearance entry fee
 
-Students without an existing clearance request for the selected academic cycle pay a **TSh 10,000** entry fee before **Start Clearance**. Existing in-progress and completed requests continue without this new fee; their decisions and documents are preserved.
+Each registration number may start clearance only once, including across academic cycles and after completion or cancellation. Existing requests remain available through **My Clearance**; Start Clearance and new entry-fee requests are blocked on the server. Students who have never started pay a **TSh 10,000** entry fee before **Start Clearance**. Existing decisions, history and documents are preserved.
 
 The student selects **Clearance Fee → Request control number**. The assigned **Finance and Accounting officer** uses **Clearance Fee Payments** to issue the number, reviews the student's private receipt and explicitly confirms payment before approval unlocks Start Clearance. Receipt upload alone does not approve payment. Finance also sets the fee per academic cycle; the default is TSh 10,000, and rate changes affect new requests only. Administrators continue to control the clearance period and do not set this fee.
 

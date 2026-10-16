@@ -8,9 +8,7 @@ require_role('STUDENT');
 
 $u = current_user();
 $period=clearance_period_state($pdo);
-$request = $period['academic_cycle']
-    ? get_clearance_for_cycle($pdo,(int)$u['student_id'],(string)$period['academic_cycle'])
-    : get_latest_clearance($pdo,(int)$u['student_id']);
+$request = get_student_clearance($pdo,(int)$u['student_id']);
 
 if (!$request) {
     $pageTitle = 'My Clearance';
@@ -42,7 +40,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 </div>
 
-<div class="panel">
+<div class="panel student-progress-overview clearance-tracking-panel">
     <div class="panel-head">
         <h2>Clearance Progress</h2>
         <span class="<?= e(badge_class($request['status'])) ?>"><?= e(humanize_status($request['status'])) ?></span>
@@ -61,15 +59,20 @@ require_once __DIR__ . '/../includes/header.php';
 
 </div>
 
-<div class="stage-list">
+<div class="student-office-heading"><h2>Office Reviews</h2><span>Select an office to view details or respond.</span></div>
+<div class="office-status-grid clearance-stage-list">
     <?php foreach ($stages as $stage): ?>
-        <article class="stage-card <?= $stage['status']==='REJECTED'?'stage-response':'' ?>" id="stage-<?= (int)$stage['id'] ?>">
-            <div class="stage-number"><?= (int) $stage['step_number'] ?></div>
-
-            <div class="stage-main">
-                <h3><?= e($stage['title']) ?></h3>
-                <p><?= e($stage['office']) ?></p>
-
+        <details class="stage-card office-status-item <?= e(strtolower($stage['status'])) ?> <?= $stage['status']==='REJECTED'?'stage-response':'' ?>" id="stage-<?= (int)$stage['id'] ?>">
+            <summary class="stage-review-summary">
+            <span class="stage-number office-status-number" aria-hidden="true"><?= (int) $stage['step_number'] ?></span>
+            <div class="stage-main office-status-copy">
+                <strong><?= e($stage['office']) ?></strong>
+                <span class="office-status-badge <?= e(badge_class($stage['status'])) ?>"><?= icon($stage['status'] === 'APPROVED' ? 'check-circle' : ($stage['status'] === 'REJECTED' ? 'alert-circle' : 'clock')) ?> <?= e(humanize_status($stage['status'])) ?></span>
+            </div>
+            <span class="stage-details-cue"><?= icon('chevron-right') ?></span>
+            </summary>
+            <div class="stage-details-body">
+                <p><strong>Review:</strong> <?= e($stage['title']) ?></p>
                 <?php if ($stage['officer_name']): ?>
                     <small>Assigned officer: <?= e($stage['officer_name']) ?></small>
                 <?php endif; ?>
@@ -91,10 +94,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php endif; ?>
             </div>
 
-            <span class="<?= e(badge_class($stage['status'])) ?>">
-                <?= e(humanize_status($stage['status'])) ?>
-            </span>
-        </article>
+        </details>
     <?php endforeach; ?>
 </div>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

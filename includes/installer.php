@@ -6,7 +6,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 
 // Bump when schema or initial reference-data requirements change.
-const APPLICATION_SCHEMA_VERSION = '2026_runtime_v13_email_notifications';
+const APPLICATION_SCHEMA_VERSION = '2026_runtime_v15_student_email_otp';
 
 function database_schema_ready(PDO $db): bool
 {
@@ -210,84 +210,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     FOREIGN KEY (clearance_request_id) REFERENCES clearance_requests(id) ON DELETE SET NULL
 ) ENGINE=InnoDB
 SQL,
-        'officer_availability' => <<<'SQL'
-CREATE TABLE IF NOT EXISTS officer_availability (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    officer_id INT NOT NULL,
-    status ENUM('AVAILABLE','UNAVAILABLE','ON_LEAVE','SUSPENDED','INACTIVE') NOT NULL DEFAULT 'AVAILABLE',
-    start_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    end_at DATETIME NULL,
-    reason VARCHAR(255) NULL,
-    changed_by INT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (officer_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL,
-    INDEX idx_officer_availability_officer (officer_id),
-    INDEX idx_officer_availability_status (status)
-) ENGINE=InnoDB
-SQL,
-        'officer_backup' => <<<'SQL'
-CREATE TABLE IF NOT EXISTS officer_backup (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    office_id INT NOT NULL,
-    primary_officer_id INT NOT NULL,
-    backup_officer_id INT NOT NULL,
-    active TINYINT(1) NOT NULL DEFAULT 1,
-    reason VARCHAR(255) NULL,
-    authorized_by INT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (office_id) REFERENCES offices(id) ON DELETE CASCADE,
-    FOREIGN KEY (primary_officer_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (backup_officer_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (authorized_by) REFERENCES users(id) ON DELETE SET NULL,
-    UNIQUE KEY unique_backup_map (office_id, primary_officer_id, backup_officer_id),
-    INDEX idx_officer_backup_active (active)
-) ENGINE=InnoDB
-SQL,
-        'clearance_escalations' => <<<'SQL'
-CREATE TABLE IF NOT EXISTS clearance_escalations (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    clearance_request_id INT NOT NULL,
-    stage_id INT NULL,
-    office_id INT NULL,
-    primary_officer_id INT NULL,
-    current_officer_id INT NULL,
-    escalation_level INT NOT NULL DEFAULT 1,
-    reason VARCHAR(255) NOT NULL,
-    status ENUM('OPEN','PENDING','RESOLVED') NOT NULL DEFAULT 'OPEN',
-    created_by INT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    resolved_at DATETIME NULL,
-    FOREIGN KEY (clearance_request_id) REFERENCES clearance_requests(id) ON DELETE CASCADE,
-    FOREIGN KEY (stage_id) REFERENCES clearance_stages(id) ON DELETE SET NULL,
-    FOREIGN KEY (office_id) REFERENCES offices(id) ON DELETE SET NULL,
-    FOREIGN KEY (primary_officer_id) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY (current_officer_id) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
-    INDEX idx_clearance_escalations_request (clearance_request_id),
-    INDEX idx_clearance_escalations_status (status)
-) ENGINE=InnoDB
-SQL,
-        'emergency_clearances' => <<<'SQL'
-CREATE TABLE IF NOT EXISTS emergency_clearances (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    clearance_request_id INT NOT NULL,
-    requester_user_id INT NOT NULL,
-    reason_category VARCHAR(120) NOT NULL,
-    description TEXT NOT NULL,
-    requested_priority VARCHAR(40) NOT NULL DEFAULT 'HIGH',
-    status ENUM('NORMAL','PRIORITY_REQUESTED','UNDER_REVIEW','PRIORITY_APPROVED','PRIORITY_REJECTED','ESCALATED','RESOLVED') NOT NULL DEFAULT 'NORMAL',
-    reviewer_user_id INT NULL,
-    decision_reason TEXT NULL,
-    decision_at DATETIME NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (clearance_request_id) REFERENCES clearance_requests(id) ON DELETE CASCADE,
-    FOREIGN KEY (requester_user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE SET NULL,
-    UNIQUE KEY unique_active_emergency (clearance_request_id, status),
-    INDEX idx_emergency_clearances_status (status)
-) ENGINE=InnoDB
-SQL,
     ];
 
     foreach ($tables as $sql) {
@@ -319,6 +241,8 @@ SQL,
     require_once __DIR__ . '/migrations.php';
     migrate_features($db);
     migrate_password_recovery_requests($db);
+    require_once __DIR__.'/student_password_otp_migrations.php';
+    migrate_student_password_otps($db);
     migrate_retired_notification_settings($db);
 
     require_once __DIR__ . '/email_notification_migrations.php';
@@ -338,6 +262,7 @@ SQL,
 
     require_once __DIR__.'/clearance_fee_migrations.php';
     migrate_clearance_fees($db);
+    migrate_retired_feature_tables($db);
 
     foreach([
         ['notifications','idx_notifications_unread','user_id,is_read'],
@@ -554,7 +479,11 @@ function seed_demo_accounts(PDO $db): void
         $student=$db->prepare('SELECT id FROM students WHERE user_id=?');
         $student->execute([$userId]);
         if($student->fetchColumn()){
-            $updateStudent->execute([$registration,$demo['programme'],$demo['academic_cycle'],$departmentId,$userId]);
+            // Existing profiles may have been corrected since their initial seed.
+            // Only the explicit legacy-registration conversion rewrites those fields.
+            if($legacyUpgrade){
+                $updateStudent->execute([$registration,$demo['programme'],$demo['academic_cycle'],$departmentId,$userId]);
+            }
         } else {
             $db->prepare('INSERT INTO students(user_id,registration_number,programme,year_of_study,department_id) VALUES (?,?,?,?,?)')->execute([$userId,$registration,$demo['programme'],$demo['academic_cycle'],$departmentId]);
         }

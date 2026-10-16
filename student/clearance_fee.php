@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once __DIR__.'/../includes/bootstrap.php';
 require_role('STUDENT');
 $u=current_user();$period=clearance_period_state($pdo);$error='';$errors=[];
-if ($period['academic_cycle'] && get_clearance_for_cycle($pdo,(int)$u['student_id'],$period['academic_cycle'])) { redirect('student/status.php'); }
+if (get_student_clearance($pdo,(int)$u['student_id'])) { redirect('student/status.php'); }
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     try {
         verify_csrf();

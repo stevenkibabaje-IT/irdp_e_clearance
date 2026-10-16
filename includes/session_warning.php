@@ -16,10 +16,6 @@ $sessionState = authenticated_session_state();
     <p class="danger-text" id="sessionWarningError" role="status"></p>
     <div class="session-warning-actions">
         <button class="btn primary" id="sessionContinue" type="button">Continue session / Endelea</button>
-        <form method="post" action="<?= e(url('auth/logout.php')) ?>">
-            <?php csrf_field(); ?>
-            <button class="btn secondary" type="submit">Log out</button>
-        </form>
     </div>
 </dialog>
 <script defer src="<?= e(url('assets/js/session.js?v=' . filemtime(__DIR__ . '/../assets/js/session.js'))) ?>"></script>

@@ -33,6 +33,11 @@
     if (accessibilityTools) accessibilityToggle?.setAttribute('aria-expanded', String(accessibilityTools.open));
     accessibilityTools?.addEventListener('toggle', () => {
         accessibilityToggle?.setAttribute('aria-expanded', String(accessibilityTools.open));
+        if (accessibilityTools.open) document.dispatchEvent(new CustomEvent('app:accessibility-open'));
+    });
+    document.getElementById('accessibilityClose')?.addEventListener('click', () => {
+        accessibilityTools.open = false;
+        accessibilityToggle?.focus({preventScroll: true});
     });
     document.addEventListener('pointerdown', event => {
         if (accessibilityTools?.open && !accessibilityTools.contains(event.target)) accessibilityTools.open = false;
@@ -82,7 +87,9 @@
     menu?.addEventListener('click', () => setNavigation(!sidebar.classList.contains('open'), true));
     close?.addEventListener('click', () => setNavigation(false, true));
     backdrop?.addEventListener('click', () => setNavigation(false, true));
-    sidebar?.querySelectorAll('a').forEach(link => link.addEventListener('click', () => setNavigation(false)));
+    sidebar?.addEventListener('click', event => {
+        if (event.target.closest('a')) setNavigation(false);
+    });
     document.addEventListener('keydown', event => {
         if (!mobile.matches || !sidebar?.classList.contains('open')) return;
         if (event.key === 'Escape' && !event.defaultPrevented) {
@@ -111,7 +118,9 @@
     const firstError = document.querySelector('[aria-invalid="true"]');
     if (firstError) firstError.focus();
     // Give overflow tables an accessible keyboard scroll target and name.
-    document.querySelectorAll('.table-wrap').forEach((wrapper, index) => {
+    function initializeTables() {
+    document.querySelectorAll('.table-wrap:not([data-scroll-ready])').forEach((wrapper, index) => {
+        wrapper.dataset.scrollReady = 'true';
         wrapper.setAttribute('role', 'region');
         wrapper.setAttribute('aria-label', wrapper.querySelector('caption')?.textContent || `Scrollable table ${index + 1}`);
         const hint = document.createElement('p');
@@ -125,7 +134,16 @@
             hint.hidden = !overflows;
         };
         updateOverflow();
-        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(updateOverflow).observe(wrapper);
+        if (typeof ResizeObserver !== 'undefined') {
+            const observer = new ResizeObserver(() => {
+                if (!wrapper.isConnected) { observer.disconnect(); return; }
+                updateOverflow();
+            });
+            observer.observe(wrapper);
+        }
         else window.addEventListener('resize', updateOverflow);
     });
+    }
+    initializeTables();
+    document.addEventListener('app:navigated', () => { setNavigation(false); initializeTables(); });
 })();

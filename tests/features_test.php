@@ -5,6 +5,11 @@ require_once __DIR__.'/../includes/installer.php';
 require_once __DIR__.'/../includes/functions.php';
 date_default_timezone_set('Africa/Dar_es_Salaam');$_SESSION=[];
 function check(bool $condition,string $message): void {if(!$condition){throw new RuntimeException($message);}}
+function check_retired_tables_absent(PDO $pdo): void {
+    $tables=$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+    check(!array_intersect(RETIRED_FEATURE_TABLES,$tables),'A retired feature table was recreated.');
+    check(count($tables)===30,'Expected exactly 30 application tables.');
+}
 function rejected(callable $operation,string $message): void {try{$operation();}catch(RuntimeException $e){return;}throw new RuntimeException($message);}
 function fixture_stage(PDO $pdo,int $student,int $office,int $step,int $reviewer,string $age='NOW()'): array
 {
@@ -54,6 +59,19 @@ try{
     rejected(fn()=>validate_review_details([['item','Item','asset']],['item'=>'UNKNOWN']),'Unlisted clearance option accepted.');
     echo "PASS: existing/nonexistent academic cycles, duplicate emails, names, registration numbers and clearance values\n";
     check(database_schema_ready($pdo),'Installed database did not record its runtime version.');
+    check_retired_tables_absent($pdo);
+    // Simulate an older installation. A nonempty legacy table must block all drops.
+    foreach(RETIRED_FEATURE_TABLES as $retiredTable){
+        $pdo->exec('CREATE TABLE `'.$retiredTable.'` ('.($retiredTable==='app_settings'?'name VARCHAR(80) PRIMARY KEY,value VARCHAR(255)':'id INT PRIMARY KEY').') ENGINE=InnoDB');
+    }
+    $pdo->exec('INSERT INTO stage_appeals(id) VALUES (1)');
+    rejected(fn()=>migrate_retired_feature_tables($pdo),'Nonempty legacy history was silently deleted.');
+    check(count($pdo->query('SHOW TABLES')->fetchAll())===39,'Cleanup partially removed tables before preflight completed.');
+    $pdo->exec('DELETE FROM stage_appeals');
+    $pdo->exec("INSERT INTO app_settings(name,value) VALUES ('custom_setting','preserve')");
+    rejected(fn()=>migrate_retired_feature_tables($pdo),'Unknown settings were silently deleted.');
+    $pdo->exec('DELETE FROM app_settings');
+    $pdo->exec("INSERT INTO app_settings(name,value) VALUES ('reminder_hours','48'),('escalation_hours','72'),('resubmission_limit','3')");
     // Exercise upgrading an installation that still has the retired queue and preference.
     $studentsBefore=$pdo->query('SELECT * FROM students ORDER BY id')->fetchAll();
     $usersBefore=$pdo->query('SELECT * FROM users ORDER BY id')->fetchAll();
@@ -64,6 +82,7 @@ try{
     $pdo->prepare('DELETE FROM schema_migrations WHERE version=?')->execute([APPLICATION_SCHEMA_VERSION]);
     ensure_database_ready($pdo,false);
     ensure_database_ready($pdo,false);
+    check_retired_tables_absent($pdo);
     check(!(int)$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sms_outbox'")->fetchColumn(),'Retired queue remains.');
     check(!(int)$pdo->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='students' AND COLUMN_NAME='sms_opt_in'")->fetchColumn(),'Retired preference remains.');
     check($studentsBefore===$pdo->query('SELECT * FROM students ORDER BY id')->fetchAll()&&$usersBefore===$pdo->query('SELECT * FROM users ORDER BY id')->fetchAll(),'Cleanup changed student or account data.');
@@ -81,10 +100,9 @@ try{
     $supervisor=create_account($pdo,['username'=>'TESTSUP','full_name'=>'Taylor Example','password'=>'Cloud lantern meadow 47','confirm_password'=>'Cloud lantern meadow 47','role_id'=>(string)$pdo->query('SELECT id FROM roles WHERE name="SUPERVISOR"')->fetchColumn(),'email'=>'','office_id'=>'','department_id'=>''],$admin);
     $pdo->prepare('INSERT INTO user_offices(user_id,office_id) VALUES (?,?)')->execute([$backup,$office]);
     [$request,$stage]=fixture_stage($pdo,$student,$office,$step,$backup,'DATE_SUB(NOW(),INTERVAL 73 HOUR)');
-    $pdo->prepare('INSERT INTO officer_availability(officer_id,status,start_at,reason,changed_by) VALUES (?,"UNAVAILABLE",NOW(),"Legacy availability record",?)')->execute([$primary,$admin]);
-    check(find_office_reviewer($pdo,$office)===$primary,'Retired availability records blocked an active office officer.');
+    check(find_office_reviewer($pdo,$office)===$primary,'Active office routing requires a retired availability table.');
     $pdo->beginTransaction();route_clearance_stage($pdo,$request,$stage,$admin);lock_review_stage($pdo,$request,$stage,$backup,'PENDING');$pdo->commit();
-    check((int)$pdo->query('SELECT COUNT(*) FROM clearance_escalations')->fetchColumn()===0,'Ordinary routing generated an escalation.');
+    check_retired_tables_absent($pdo);
     check(!office_authority($pdo,$supervisor,$office),'Legacy Supervisor implicitly gained office access.');
     $pdo->beginTransaction();rejected(fn()=>lock_review_stage($pdo,$request,$stage,$supervisor,'PENDING'),'Reviewer without office access reviewed stage.');$pdo->rollBack();
     $pdo->prepare('UPDATE users SET active=0 WHERE id=?')->execute([$backup]);
@@ -103,7 +121,7 @@ try{
     $pdo->prepare('UPDATE clearance_stages SET status="REJECTED",resubmissions=3,actionable_at=NULL WHERE id=?')->execute([$stage]);$pdo->prepare('UPDATE clearance_requests SET status="PAUSED" WHERE id=?')->execute([$request]);
     resubmit_stage($pdo,$stage,$studentUser,'Fourth correction without an appeal',[]);
     check((int)stage_context($pdo,$stage)['review_cycle']===3 && (int)stage_context($pdo,$stage)['resubmissions']===4,'Ordinary corrections remained dependent on the removed appeal feature.');
-    check((int)$pdo->query('SELECT COUNT(*) FROM stage_appeals')->fetchColumn()===0,'Correction created an appeal.');
+    check_retired_tables_absent($pdo);
     ob_start();student_evidence_form($pdo,stage_context($pdo,$stage));$evidenceForm=ob_get_clean();
     check(str_contains($evidenceForm,'name="mode" value="resubmit"') && !str_contains($evidenceForm,'Supervisor appeal'),'Evidence form still offers appeals.');
     echo "PASS: rejection history, new review cycles, liability checks and repeated ordinary corrections\n";
@@ -362,13 +380,13 @@ try{
     $png=__DIR__.'/fictional-profile.png';$files[]=$png;file_put_contents($png,base64_decode('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAC0lEQVR4nGNgGAWjAABAAAEAuV8pAAAAAElFTkSuQmCC'));
     // Generate a valid fictional portrait-shaped image with the Windows built-in image library.
     $imageScript=__DIR__.'/fixture_image.ps1';$files[]=$imageScript;file_put_contents($imageScript,'param([string]$Path)'.PHP_EOL.'Add-Type -AssemblyName System.Drawing'.PHP_EOL.'$bitmap=New-Object System.Drawing.Bitmap 96,128'.PHP_EOL.'$graphics=[System.Drawing.Graphics]::FromImage($bitmap)'.PHP_EOL.'$graphics.Clear([System.Drawing.Color]::LightGreen)'.PHP_EOL.'$bitmap.Save($Path,[System.Drawing.Imaging.ImageFormat]::Png)'.PHP_EOL.'$graphics.Dispose();$bitmap.Dispose()');
-    $proc=proc_open(['powershell.exe','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$imageScript,'-Path',$png],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$p);fclose($p[0]);$imageOutput=stream_get_contents($p[1]);$imageError=stream_get_contents($p[2]);fclose($p[1]);fclose($p[2]);check(proc_close($proc)===0,'Fixture image generation failed: '.$imageError);
+    $proc=proc_open(['powershell.exe','-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',$imageScript,'-Path',$png],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$p);fclose($p[0]);$imageOutput=stream_get_contents($p[1]);$imageError=stream_get_contents($p[2]);fclose($p[1]);fclose($p[2]);check(proc_close($proc)===0,'Fixture image generation failed: '.$imageError);
     [$code,$body]=http_call('/student/profile.php',['csrf_token'=>$csrf,'mode'=>'upload','picture'=>new CURLFile($png,'image/png','fictional.png')],$cookie,true);check($code===302,'Valid profile upload failed: '.strip_tags($body));
     $profileName=$pdo->query('SELECT profile_file FROM students WHERE id='.$student)->fetchColumn();$files[]=private_path('profiles',$profileName);check(getimagesize(private_path('profiles',$profileName))[0]===256,'Profile not resized.');
     [$code,$imageBody]=http_call('/files/profile.php?student='.$student.'&v='.$profileName,[],$cookie);check($code===200&&$imageBody===file_get_contents(private_path('profiles',$profileName)),'Saved portrait endpoint did not return the uploaded image.');
     $portraitTag='"'.hash('sha256',$student.'|'.$profileName).'"';
     [$code,$cachedBody]=http_call('/files/profile.php?student='.$student,[],$cookie,false,['If-None-Match: '.$portraitTag]);check($code===304&&$cachedBody==='','Unchanged portrait did not revalidate without retransmission.');
-    [$code,$dashboard]=http_call('/student/dashboard.php',[],$cookie);check($code===200&&substr_count($dashboard,'&amp;v='.$profileName)>=2,'Dashboard and account header did not show the saved portrait.');
+    [$code,$dashboard]=http_call('/student/dashboard.php',[],$cookie);check($code===200&&substr_count($dashboard,'&amp;v='.$profileName)===1,'Saved portrait must appear once in the account header, without a duplicate dashboard profile.');
     [$code,$body]=http_call('/student/profile.php',[],$cookie);[$code]=http_call('/student/profile.php',['csrf_token'=>token_from($body),'mode'=>'upload','picture'=>new CURLFile($png,'image/png','fictional.png')],$cookie,true);check($code===302&&!is_file(private_path('profiles',$profileName)),'Profile replacement did not remove old file.');$profileName=$pdo->query('SELECT profile_file FROM students WHERE id='.$student)->fetchColumn();$files[]=private_path('profiles',$profileName);
     [$code,$replacedBody]=http_call('/files/profile.php?student='.$student,[],$cookie,false,['If-None-Match: '.$portraitTag]);check($code===200&&$replacedBody===file_get_contents(private_path('profiles',$profileName)),'Portrait replacement returned the stale cached image.');
     $bad=__DIR__.'/invalid-upload.png';$files[]=$bad;file_put_contents($bad,'<?php echo "invalid";');[$code,$body]=http_call('/student/profile.php',[],$cookie);[$code,$body]=http_call('/student/profile.php',['csrf_token'=>token_from($body),'mode'=>'upload','picture'=>new CURLFile($bad,'image/png','invalid.png')],$cookie,true);check($code===200&&str_contains($body,'content type'),'Invalid profile image accepted.');
@@ -565,7 +583,7 @@ try{
         check(!str_contains($adminDashboard,$removed),'Admin dashboard still exposes '.$removed);
     }
     $snapshot=stage_context($pdo,$assignedStage);
-    $settingsBefore=$pdo->query('SELECT * FROM app_settings ORDER BY name')->fetchAll();
+    check_retired_tables_absent($pdo);
     $officeAccessBefore=$pdo->query('SELECT * FROM user_offices ORDER BY user_id,office_id')->fetchAll();
     foreach(['/admin/emergency.php','/admin/continuity.php','/admin/settings.php','/admin/email_notifications.php','/supervisor/dashboard.php','/admin/academic_results.php'] as $retiredPath) {
         [$code]=http_call($retiredPath,[],$adminCookie);check($code===302,'Retired feature page is still active: '.$retiredPath);
@@ -573,7 +591,7 @@ try{
         check($code===302,'Old feature POST was not retired: '.$retiredPath);
         check(stage_context($pdo,$assignedStage)===$snapshot,'Old feature action changed a clearance stage.');
     }
-    check($pdo->query('SELECT * FROM app_settings ORDER BY name')->fetchAll()===$settingsBefore,'Retired settings action changed settings.');
+    check_retired_tables_absent($pdo);
     check($pdo->query('SELECT * FROM user_offices ORDER BY user_id,office_id')->fetchAll()===$officeAccessBefore,'Retired authority action changed office access.');
     [$code]=http_call('/admin/settings.php',[],$wrongCookie);check($code===403,'Student accessed a retired staff route.');
     $legacyCookie=__DIR__.'/feature-legacy-supervisor.cookies';$files[]=$legacyCookie;
@@ -621,69 +639,45 @@ try{
     [$code,$importResult]=http_call('/admin/import.php',['csrf_token'=>token_from($importPreview),'mode'=>'commit','nonce'=>$nonce[1],'confirm'=>'1'],$adminCookie,true);
     check($code===200&&str_contains($importResult,'Created: 50')&&(int)$pdo->query('SELECT COUNT(*) FROM users WHERE username LIKE "IRDP/ODICT/MA26/95%"')->fetchColumn()===50,'50-student XLSX import commit failed.');
     echo "PASS: prefixed worksheet/empty shared strings, 50-student HTTP XLSX preview and confirmed import\n";
-    // Public recovery must reach Admin even with email disabled/unverified.
+    // Public recovery is email-only; identity-checked Admin support remains available.
     $recoveryCookie=__DIR__.'/feature-recovery.cookies';$files[]=$recoveryCookie;
-    [$code,$forgot]=http_call('/auth/forgot.php',[],$recoveryCookie);check($code===200,'Forgot Password unavailable.');$recoveryCsrf=token_from($forgot);
-    [$code,$submitted]=http_call('/auth/forgot.php',['csrf_token'=>$recoveryCsrf,'username'=>'IRDP/ODICT/MA25/0001'],$recoveryCookie,true);
-    check($code===302,'Recovery did not redirect to browser approval page.');
-    [$code,$submitted]=http_call('/auth/reset.php',[],$recoveryCookie);
-    check($code===200&&str_contains($submitted,'awaiting administrator approval'),'Recovery approval instructions missing.');
-    $recovery=$pdo->query('SELECT * FROM password_reset_requests WHERE user_id='.$studentUser.' ORDER BY id DESC LIMIT 1')->fetch();
-    check($recovery&&$recovery['status']==='PENDING'&&$recovery['reset_id'],'Forgot Password did not bind a pending browser recovery request.');
-    [$code,$duplicate]=http_call('/auth/forgot.php',['csrf_token'=>$recoveryCsrf,'username'=>'IRDP/ODICT/MA25/0001'],$recoveryCookie,true);
-    check((int)$pdo->query('SELECT COUNT(*) FROM password_reset_requests WHERE user_id='.$studentUser.' AND status IN ("PENDING","ISSUED")')->fetchColumn()===1,'Duplicate open recovery requests.');
+    [$code,$forgot]=http_call('/auth/forgot.php',[],$recoveryCookie);check($code===200&&str_contains($forgot,'name="email"')&&!str_contains($forgot,'name="username"')&&!str_contains($forgot,'Staff recovery'),'Forgot Password must be a simple registered-email form.');
     $requestCount=(int)$pdo->query('SELECT COUNT(*) FROM password_reset_requests')->fetchColumn();
-    [$code,$unknown]=http_call('/auth/forgot.php',['csrf_token'=>$recoveryCsrf,'username'=>'fictional-unknown'],$recoveryCookie,true);
-    if($code===302){[$code,$unknown]=http_call('/auth/reset.php',[],$recoveryCookie);}
-    preg_match('/<div class="alert info">(.*?)<\/div>/s',$submitted,$knownMessage);preg_match('/<div class="alert info">(.*?)<\/div>/s',$unknown,$unknownMessage);
-    check($code===200&&$knownMessage[1]===$unknownMessage[1]&&(int)$pdo->query('SELECT COUNT(*) FROM password_reset_requests')->fetchColumn()===$requestCount,'Recovery exposed unknown account or queued it.');
-    $s=$pdo->prepare('SELECT COUNT(*) FROM notifications WHERE user_id=? AND title="Password reset requested"');$s->execute([$admin]);check((int)$s->fetchColumn()===1,'Admin not notified or duplicate notifications created.');
+    [$code,$registrationOnly]=http_call('/auth/forgot.php',['csrf_token'=>token_from($forgot),'username'=>'IRDP/ODICT/MA25/0001'],$recoveryCookie,true);
+    check($code===200&&str_contains($registrationOnly,'email-error')&&(int)$pdo->query('SELECT COUNT(*) FROM password_reset_requests')->fetchColumn()===$requestCount,'A registration number bypassed student email recovery.');
     [$code]=http_call('/admin/recovery.php',[],$officerCookie);check($code===403,'Officer accessed reset requests.');
-    [$code]=http_call('/admin/recovery.php',['csrf_token'=>token_from($normalReview),'request_id'=>(string)$recovery['id'],'action'=>'issue'],$officerCookie,true);check($code===403,'Officer submitted admin recovery action.');
-    rejected(fn()=>admin_password_recovery($pdo,['action'=>'issue','request_id'=>(string)$recovery['id'],'identity_reference'=>'Fictional check','identity_checked'=>'1'],$primary),'Officer helper issued a credential.');
-    [$code,$recoveryPage]=http_call('/admin/recovery.php?request='.$recovery['id'],[],$adminCookie);
-    check($code===200&&str_contains($recoveryPage,'IRDP/ODICT/MA25/0001')&&str_contains($recoveryPage,'Approve student password change'),'Admin queue missing request.');
-    [$code,$approvedBrowser]=http_call('/admin/recovery.php',['csrf_token'=>token_from($recoveryPage),'request_id'=>(string)$recovery['id'],'action'=>'issue','browser_approval'=>'1'],$adminCookie,true);
-    check($code===302,'Browser recovery approval failed.');
-    [$code,$browserForm]=http_call('/auth/reset.php',[],$recoveryCookie);
-    check($code===200&&str_contains($browserForm,'Administrator approval received')&&!str_contains($browserForm,'name="credential"'),'Approved student still requires a reset code.');
-    [$code,$unverified]=http_call('/admin/recovery.php',['csrf_token'=>token_from($recoveryPage),'request_id'=>(string)$recovery['id'],'action'=>'issue','identity_reference'=>'Fictional ID record'],$adminCookie,true);
-    check($code===200&&str_contains($unverified,'Verify institutional identity')&&!str_contains($unverified,'id="reset-code"'),'Admin issued code without checking identity.');
-    [$code,$issued]=http_call('/admin/recovery.php',['csrf_token'=>token_from($unverified),'request_id'=>(string)$recovery['id'],'username'=>'admin','action'=>'issue','identity_reference'=>'Fictional ID record','identity_checked'=>'1'],$adminCookie,true);
-    check($code===200&&preg_match('/id="reset-code"[^>]*>([a-f0-9]{64})<\/code>/',$issued,$match)===1,'Admin did not receive reset code.');$resetCode=$match[1];
+    rejected(fn()=>admin_password_recovery($pdo,['action'=>'issue','username'=>'IRDP/ODICT/MA25/0001','identity_reference'=>'Fictional check','identity_checked'=>'1'],$primary),'Officer helper issued a credential.');
+    [$code,$recoveryPage]=http_call('/admin/recovery.php',[],$adminCookie);
+    [$code,$unverified]=http_call('/admin/recovery.php',['csrf_token'=>token_from($recoveryPage),'username'=>'IRDP/ODICT/MA25/0001','action'=>'issue','identity_reference'=>'Fictional check'],$adminCookie,true);
+    check($code===200&&str_contains($unverified,'Verify institutional identity'),'Admin issued a code without identity verification.');
+    [$code,$issued]=http_call('/admin/recovery.php',['csrf_token'=>token_from($unverified),'username'=>'IRDP/ODICT/MA25/0001','action'=>'issue','identity_reference'=>'Fictional verified identity','identity_checked'=>'1'],$adminCookie,true);
+    check($code===200&&preg_match('/id="reset-code"[^>]*>([a-f0-9]{64})<\/code>/',$issued,$match)===1,'Identity-checked Admin recovery code missing.');$resetCode=$match[1];
+    $recovery=$pdo->query('SELECT * FROM password_reset_requests WHERE user_id='.$studentUser.' ORDER BY id DESC LIMIT 1')->fetch();
     $record=$pdo->query('SELECT pr.*,p.user_id AS token_user,p.token_hash FROM password_reset_requests pr INNER JOIN password_resets p ON p.id=pr.reset_id WHERE pr.id='.(int)$recovery['id'])->fetch();
     check($record['status']==='ISSUED'&&(int)$record['token_user']===$studentUser&&$record['token_hash']===hash('sha256',$resetCode),'Issued code linked to wrong account or stored in plaintext.');
     [$code,$issuedAgain]=http_call('/admin/recovery.php?request='.$recovery['id'],[],$adminCookie);check(!str_contains($issuedAgain,$resetCode),'Code redisplayed after issuance.');
-    // Replacement revokes the old code, and only a completed reset closes the request.
     [$code,$replacement]=http_call('/admin/recovery.php',['csrf_token'=>token_from($issuedAgain),'request_id'=>(string)$recovery['id'],'action'=>'issue','identity_reference'=>'Fictional repeated ID check','identity_checked'=>'1'],$adminCookie,true);
     check(preg_match('/id="reset-code"[^>]*>([a-f0-9]{64})<\/code>/',$replacement,$match)===1,'Replacement code missing.');$replacementCode=$match[1];
-    [$code,$resetPage]=http_call('/auth/reset.php',[],$recoveryCookie);
-    [$code,$invalid]=http_call('/auth/reset.php',['csrf_token'=>token_from($resetPage),'credential'=>$resetCode,'password'=>'Birch meadow compass 74','confirm_password'=>'Birch meadow compass 74'],$recoveryCookie,true);
+    [$code,$resetPage]=http_call('/auth/reset.php?manual=1',[],$recoveryCookie);
+    [$code,$invalid]=http_call('/auth/reset.php?manual=1',['csrf_token'=>token_from($resetPage),'credential'=>$resetCode,'password'=>'Birch meadow compass 74','confirm_password'=>'Birch meadow compass 74'],$recoveryCookie,true);
     check($code===200&&str_contains($invalid,'Invalid or expired reset credential'),'Replaced reset code accepted.');
-    [$code,$mismatch]=http_call('/auth/reset.php',['csrf_token'=>token_from($invalid),'credential'=>$replacementCode,'password'=>'Birch meadow compass 74','confirm_password'=>'Wrong123'],$recoveryCookie,true);
+    [$code,$mismatch]=http_call('/auth/reset.php?manual=1',['csrf_token'=>token_from($invalid),'credential'=>$replacementCode,'password'=>'Birch meadow compass 74','confirm_password'=>'Wrong123'],$recoveryCookie,true);
     check(str_contains($mismatch,'Password confirmation must match')&&$pdo->query('SELECT status FROM password_reset_requests WHERE id='.(int)$recovery['id'])->fetchColumn()==='ISSUED','Mismatched confirmation completed request.');
-    [$code,$resetResult]=http_call('/auth/reset.php',['csrf_token'=>token_from($mismatch),'credential'=>$replacementCode,'password'=>'Birch meadow compass 74','confirm_password'=>'Birch meadow compass 74'],$recoveryCookie,true);
-    check($code===200&&str_contains($resetResult,'Password updated')&&$pdo->query('SELECT status FROM password_reset_requests WHERE id='.(int)$recovery['id'])->fetchColumn()==='COMPLETED','Successful reset did not complete the queued request.');
+    [$code,$resetResult]=http_call('/auth/reset.php?manual=1',['csrf_token'=>token_from($mismatch),'credential'=>$replacementCode,'password'=>'Birch meadow compass 74','confirm_password'=>'Birch meadow compass 74'],$recoveryCookie,true);
+    check($code===200&&str_contains($resetResult,'Password updated')&&$pdo->query('SELECT status FROM password_reset_requests WHERE id='.(int)$recovery['id'])->fetchColumn()==='COMPLETED','Successful reset did not complete the support request.');
     [$code]=http_call('/student/dashboard.php',[],$cookie);check($code===302,'Old student session survived password reset.');
     [$code,$loginPage]=http_call('/auth/login.php',[],$recoveryCookie);
     [$code,$oldLogin]=http_call('/auth/login.php',['csrf_token'=>token_from($loginPage),'username'=>'IRDP/ODICT/MA25/0001','password'=>'Cedar ocean lantern 91'],$recoveryCookie,true);check($code===200&&str_contains($oldLogin,'Invalid username or password'),'Old password still works.');
     test_login('IRDP/ODICT/MA25/0001','Birch meadow compass 74',$recoveryCookie);
     [$code,$completedPage]=http_call('/admin/recovery.php?status=COMPLETED',[],$adminCookie);check($code===200&&str_contains($completedPage,'IRDP/ODICT/MA25/0001')&&str_contains($completedPage,'Completed'),'Admin cannot see completed requests.');
     rejected(fn()=>admin_password_recovery($pdo,['action'=>'issue','request_id'=>(string)$recovery['id'],'identity_reference'=>'Closed request','identity_checked'=>'1'],$admin),'Completed request reopened by stale action.');
-    // Rejection revokes its issued token. Inactive/unknown/throttled submissions stay neutral.
-    [$code,$forgot]=http_call('/auth/forgot.php',[],$wrongCookie);
-    [$code]=http_call('/auth/forgot.php',['csrf_token'=>token_from($forgot),'username'=>'IRDP/BTCRP/MA25/0002'],$wrongCookie,true);
-    $rejectedRequest=(int)$pdo->query('SELECT id FROM password_reset_requests WHERE user_id='.$ids['IRDP/BTCRP/MA25/0002'].' ORDER BY id DESC LIMIT 1')->fetchColumn();check($rejectedRequest>0,'Second recovery request not recorded.');
-    $rejectCode=admin_password_recovery($pdo,['action'=>'issue','request_id'=>(string)$rejectedRequest,'identity_reference'=>'Fictional ID check','identity_checked'=>'1'],$admin);
+    $rejectCode=admin_password_recovery($pdo,['action'=>'issue','username'=>'IRDP/BTCRP/MA25/0002','identity_reference'=>'Fictional ID check','identity_checked'=>'1'],$admin);
+    $rejectedRequest=(int)$pdo->query('SELECT id FROM password_reset_requests WHERE user_id='.$ids['IRDP/BTCRP/MA25/0002'].' ORDER BY id DESC LIMIT 1')->fetchColumn();
     [$code,$rejectPage]=http_call('/admin/recovery.php?request='.$rejectedRequest,[],$adminCookie);
     [$code]=http_call('/admin/recovery.php',['csrf_token'=>token_from($rejectPage),'request_id'=>(string)$rejectedRequest,'action'=>'reject','decision_reason'=>'Fictional identity verification failed'],$adminCookie,true);
     check($code===302&&$pdo->query('SELECT status FROM password_reset_requests WHERE id='.$rejectedRequest)->fetchColumn()==='REJECTED','Admin rejection did not persist.');
     rejected(fn()=>reset_password($pdo,$rejectCode,'Birch meadow compass 74','Birch meadow compass 74'),'Rejected request credential remained valid.');
-    $pdo->exec('UPDATE users SET active=0 WHERE username="IRDP/ODICT/MA26/9101"');
-    $requestCount=(int)$pdo->query('SELECT COUNT(*) FROM password_reset_requests')->fetchColumn();
-    [$code,$inactive]=http_call('/auth/forgot.php',['csrf_token'=>token_from($forgot),'username'=>'IRDP/ODICT/MA26/9101'],$wrongCookie,true);check(in_array($code,[200,302],true)&&(int)$pdo->query('SELECT COUNT(*) FROM password_reset_requests')->fetchColumn()===$requestCount,'Inactive recovery queued.');
-    [$code,$throttled]=http_call('/auth/forgot.php',['csrf_token'=>token_from($forgot),'username'=>'IRDP/BTCRP/MA25/0002'],$wrongCookie,true);check(in_array($code,[200,302],true)&&(int)$pdo->query('SELECT COUNT(*) FROM password_reset_requests')->fetchColumn()===$requestCount,'Throttled recovery submission queued.');
-    echo "PASS: HTTP forgot-password queue, Admin authorization/identity check, duplicate protection, replacement/rejection, password reset completion and revoked sessions\n";
+    echo "PASS: email-only public recovery, verified Admin support authorization, code replacement/rejection, confirmation, completion and revoked sessions\n";
     check(!certificate_release_allowed($pdo,$request),'Incomplete clearance permitted certificate release.');
     // Real starts require all office reviewers and keep the period gate.
     $startCookie=__DIR__.'/feature-start.cookies';$files[]=$startCookie;
@@ -795,7 +789,7 @@ try{
     $requestsBefore=(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn();
     [$code,$closedResult]=http_call('/student/start.php',['csrf_token'=>token_from($closedForm),'academic_year'=>$cycle],$closedCookie,true);
     check($code===200&&str_contains($closedResult,CLEARANCE_CLOSED_MESSAGE)&&(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn()===$requestsBefore,'Feature removal bypassed the closed clearance period.');
-    check((int)$pdo->query('SELECT COUNT(*) FROM clearance_escalations')->fetchColumn()===0&&(int)$pdo->query('SELECT COUNT(*) FROM emergency_clearances')->fetchColumn()===0&&(int)$pdo->query('SELECT COUNT(*) FROM stage_appeals')->fetchColumn()===0,'Normal clearance created a retired feature record.');
+    check_retired_tables_absent($pdo);
     echo "PASS: HTTP student start, complete office assignment, rollback for missing reviewers and closed-period protection\n";
     $transcriptBefore=transcript_for_student($pdo,$student,$fullRequest);
     $pdo->prepare('UPDATE clearance_requests SET status="COMPLETED",completed_at=NOW() WHERE id=?')->execute([$assignedRequest]);
@@ -824,6 +818,7 @@ try{
     $pdo->prepare('DELETE FROM schema_migrations WHERE version IN (?,?)')->execute([APPLICATION_SCHEMA_VERSION,'2026_recovery_requests_v1']);
     ensure_database_ready($pdo,false);
     check(database_schema_ready($pdo)&&(int)$pdo->query('SELECT COUNT(*) FROM password_reset_requests')->fetchColumn()===$recoveryCount&&(int)$pdo->query('SELECT COUNT(*) FROM stage_actions')->fetchColumn()===$count,'Runtime upgrade lost reset history or clearance decisions.');
+    check_retired_tables_absent($pdo);
     check(transcript_for_student($pdo,$student,$fullRequest)===$transcriptBefore,'Migration changed an issued transcript snapshot.');
     foreach(['student_results','programme_modules','grading_rules'] as $removedTable){check($pdo->query("SHOW TABLES LIKE '".$removedTable."'")->fetchColumn()===false,'Migration recreated removed results tables.');}
     // Replace the previous academic format without changing its historical snapshot.

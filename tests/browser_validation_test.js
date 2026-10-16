@@ -45,7 +45,7 @@ const confirm = control('confirm_password', password.value, {type: 'password', d
 const passwords = form([password, confirm]);
 
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../assets/js/validation.js'), 'utf8'),
-    {document: {querySelectorAll: () => [account, money, uploads, reports, periods, passwords]}});
+    {document: {querySelectorAll: () => [account, money, uploads, reports, periods, passwords], addEventListener() {}}});
 
 assert.equal(department.required, true);
 assert.equal(programme.required, true);
