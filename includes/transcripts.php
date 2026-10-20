@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-/** Immutable clearance transcripts released after all office approvals. */
+/** Immutable Student Clearance Certificates released after all office approvals. */
 
 function transcript_for_student(PDO $pdo, int $studentId, ?int $requestId = null): ?array
 {
-    $sql = 'SELECT * FROM transcripts WHERE student_id=?';
+    $sql = 'SELECT * FROM transcripts WHERE student_id=? AND document_number IS NOT NULL';
     $params = [$studentId];
     if ($requestId !== null) {
         $sql .= ' AND clearance_request_id=?';
@@ -35,10 +35,10 @@ function transcript_request(PDO $pdo, int $studentId, ?int $requestId = null): a
     $s->execute([$requestId, $studentId]);
     $request = $s->fetch();
     if (!$request || $request['status'] !== 'COMPLETED') {
-        throw new RuntimeException('Transcript access will be available after successful completion of the clearance process.');
+        throw new RuntimeException('Student Clearance Certificate access will be available after successful completion of the clearance process.');
     }
     if (!certificate_release_allowed($pdo, (int)$request['id'])) {
-        throw new RuntimeException('All eleven office approvals and cleared liabilities are required for a clearance transcript.');
+        throw new RuntimeException('All eleven office approvals and cleared liabilities are required for a Student Clearance Certificate.');
     }
     $s = $pdo->prepare('SELECT id FROM students WHERE id=? FOR UPDATE');
     $s->execute([$studentId]);
@@ -58,7 +58,7 @@ function transcript_office_approvals(PDO $pdo, int $requestId): array
     $s->execute([$requestId]);
     $approvals = $s->fetchAll();
     if (array_map(fn($row) => (int)$row['step_number'], $approvals) !== range(1, 11)) {
-        throw new RuntimeException('All eleven office approvals are required for a clearance transcript.');
+        throw new RuntimeException('All eleven office approvals are required for a Student Clearance Certificate.');
     }
     foreach ($approvals as &$approval) {
         if ($approval['status'] !== 'APPROVED' || $approval['action'] !== 'APPROVED'
@@ -113,9 +113,16 @@ function create_transcript(PDO $pdo, int $studentId, int $actor, ?int $requestId
             'approvals' => $approvals,
         ];
         $json = json_encode($snapshot, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
-        $s = $pdo->prepare('INSERT INTO transcripts(student_id,clearance_request_id,cycle_id,version,document_number,verification_token,snapshot_json,snapshot_sha256,result_source,generated_by) VALUES (?,?,?,?,?,?,?,?,?,?)');
-        $s->execute([$studentId, $request['id'], $cycle['id'], $version, $number, $token, $json, hash('sha256', $json), 'CLEARANCE', $actor]);
-        $transcriptId = (int)$pdo->lastInsertId();
+        $s=$pdo->prepare('SELECT id FROM transcripts WHERE clearance_request_id=? AND document_number IS NULL LIMIT 1 FOR UPDATE');
+        $s->execute([$request['id']]); $transcriptId=$s->fetchColumn();
+        if ($transcriptId) {
+            $s=$pdo->prepare('UPDATE transcripts SET version=?,document_number=?,verification_token=?,snapshot_json=?,snapshot_sha256=?,result_source="CLEARANCE",generated_by=?,generated_at=NOW() WHERE id=?');
+            $s->execute([$version,$number,$token,$json,hash('sha256',$json),$actor,$transcriptId]);
+        } else {
+            $s = $pdo->prepare('INSERT INTO transcripts(student_id,clearance_request_id,cycle_id,version,document_number,verification_token,snapshot_json,snapshot_sha256,result_source,generated_by) VALUES (?,?,?,?,?,?,?,?,?,?)');
+            $s->execute([$studentId, $request['id'], $cycle['id'], $version, $number, $token, $json, hash('sha256', $json), 'CLEARANCE', $actor]);
+            $transcriptId = (int)$pdo->lastInsertId();
+        }
         audit($pdo, 'TRANSCRIPT_GENERATED', $actor, (int)$request['id'], 'Clearance document ' . $number . ' version ' . $version);
         $s = $pdo->prepare('SELECT * FROM transcripts WHERE id=?');
         $s->execute([$transcriptId]);
@@ -145,7 +152,7 @@ function ensure_transcript(PDO $pdo, int $studentId, int $actor, ?int $requestId
         // A revoked document always stays revoked.
         if ($document && $document['status'] === 'VALID' && $document['result_source'] !== 'CLEARANCE') {
             $s = $pdo->prepare('UPDATE transcripts SET status="REVOKED",revoked_by=?,revoked_at=NOW(),revocation_reason=? WHERE id=?');
-            $s->execute([$actor, 'Replaced by a clearance transcript.', $document['id']]);
+            $s->execute([$actor, 'Replaced by a Student Clearance Certificate.', $document['id']]);
             audit($pdo, 'TRANSCRIPT_REVOKED', $actor, (int)$request['id'], 'Previous document ' . $document['document_number'] . ' replaced by clearance format.');
             $document = create_transcript($pdo, $studentId, $actor, (int)$request['id']);
         } elseif (!$document) {

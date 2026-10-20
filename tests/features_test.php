@@ -319,7 +319,7 @@ try{
         if($number!==1){check(stage_context($pdo,$id)['request_status']!=='COMPLETED'&&transcript_for_student($pdo,$student,$fullRequest)===null,'Clearance completed before the final office approved.');}
     }
     check(stage_context($pdo,$fullStages[1])['request_status']==='COMPLETED','The last non-Finance office did not complete clearance.');
-    check(certificate_release_allowed($pdo,$fullRequest),'Complete liability-free workflow did not pass release.');check((int)$pdo->query('SELECT COUNT(*) FROM certificates WHERE clearance_request_id='.$fullRequest)->fetchColumn()===1,'Certificate not issued exactly once.');
+    check(certificate_release_allowed($pdo,$fullRequest),'Complete liability-free workflow did not pass release.');check((int)$pdo->query('SELECT COUNT(*) FROM transcripts WHERE certificate_number IS NOT NULL AND clearance_request_id='.$fullRequest)->fetchColumn()===1,'Certificate not issued exactly once.');
     echo "PASS: all 11 independent office decisions, multiple rejections/resubmissions and final non-Finance completion\n";
     $transcript=transcript_for_student($pdo,$student,$fullRequest);
     check($transcript&&$transcript['result_source']==='CLEARANCE','Final clearance did not generate its clearance transcript.');
@@ -354,7 +354,7 @@ try{
         check($code===302&&!str_contains($removedCertificate,'STUDENT CLEARANCE CERTIFICATE'),'Removed certificate view still renders a certificate.');
     }
     [$code,$transcriptPdf]=http_call('/transcripts/download.php',[],$cookie);
-    check($code===200&&str_starts_with($transcriptPdf,'%PDF-')&&str_contains($transcriptPdf,'CLEARANCE TRANSCRIPT')&&str_contains($transcriptPdf,'OFFICE APPROVALS'),'Clearance transcript PDF is missing its title/approval table.');
+    check($code===200&&str_starts_with($transcriptPdf,'%PDF-')&&str_contains($transcriptPdf,'Student Clearance Certificate')&&str_contains($transcriptPdf,'OFFICE APPROVALS'),'Student Clearance Certificate PDF is missing its title/approval table.');
     foreach(['GPA','Marks','Grade','Credits','ACADEMIC RESULTS','FICTIONAL MARKS'] as $removedLabel){check(!str_contains($transcriptPdf,$removedLabel),'Clearance PDF still contains '.$removedLabel);}
     preg_match_all('/\((.*?)\) Tj ET/',$transcriptPdf,$pdfTextMatches);
     $plainPdf=iconv('Windows-1252','UTF-8',str_replace(['\\(','\\)','\\\\'],['(',')','\\'],implode(' ',$pdfTextMatches[1])));
@@ -556,7 +556,7 @@ try{
 
     $publicCookie=__DIR__.'/feature-validation-public.cookies';$files[]=$publicCookie;
     [$code,$certificateForm]=http_call('/certificates/verify.php',[],$publicCookie);
-    $issuedCertificate=$pdo->query('SELECT * FROM certificates WHERE clearance_request_id='.$fullRequest)->fetch();
+    $issuedCertificate=$pdo->query('SELECT * FROM transcripts WHERE certificate_number IS NOT NULL AND clearance_request_id='.$fullRequest)->fetch();
     $certificateInput=['csrf_token'=>token_from($certificateForm),'certificate_number'=>$issuedCertificate['certificate_number'],'verification_code'=>$issuedCertificate['verification_code']];
     [$code,$certificateResponse]=http_call('/certificates/verify.php',$certificateInput,$publicCookie,true);
     check($code===200&&str_contains($certificateResponse,'Certificate verified.'),'Valid certificate failed verification.');
@@ -687,7 +687,7 @@ try{
     // Entry fee: actual HTTP request, control-number changes, private receipts and verified approval.
     $requestsBefore=(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn();
     [$code,$unpaidStart]=http_call('/student/start.php',['csrf_token'=>token_from($startForm),'academic_year'=>$cycle],$startCookie,true);
-    check($code===200&&str_contains($unpaidStart,'wait for Finance approval')&&(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn()===$requestsBefore,'Unpaid student bypassed the entry fee.');
+    check($code===200&&str_contains($unpaidStart,'submit a receipt')&&(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn()===$requestsBefore,'Student without a receipt bypassed the entry fee.');
     $feeFinanceCookie=__DIR__.'/feature-fee-finance.cookies';$files[]=$feeFinanceCookie;test_login('FIN001','Mollel@2026',$feeFinanceCookie);
     $feeOtherCookie=__DIR__.'/feature-fee-other.cookies';$files[]=$feeOtherCookie;test_login('IRDP/BTCCD/MA25/0006','SAID0006',$feeOtherCookie);
     [$code,$feeSettings]=http_call('/officer/clearance_fees.php',[],$feeFinanceCookie);
@@ -704,19 +704,19 @@ try{
     [$code]=http_call('/student/clearance_fee.php',['csrf_token'=>token_from($feePage),'mode'=>'REQUEST'],$startCookie,true);check($code===302,'Student fee request failed.');
     $feeStudent=(int)$pdo->query('SELECT id FROM students WHERE user_id='.$ids['IRDP/BTCCD/MA25/0003'])->fetchColumn();
     $fee=clearance_fee_for_cycle($pdo,$feeStudent,$feeCycle);$feeId=(int)$fee['id'];
-    check($fee['status']==='REQUESTED'&&(float)$fee['amount']===10000.0&&request_clearance_fee($pdo,$ids['IRDP/BTCCD/MA25/0003'])===$feeId,'Fee request did not keep one payment per student/cycle.');
+    check($fee['status']==='AWAITING_PAYMENT'&&preg_match('/^[0-9]{18}$/D',$fee['control_number'])&&$fee['control_generated_at']&&(float)$fee['amount']===10000.0&&request_clearance_fee($pdo,$ids['IRDP/BTCCD/MA25/0003'])===$feeId,'Automatic control did not keep one payment per student/cycle.');
     [$code]=http_call('/officer/clearance_fees.php',['csrf_token'=>token_from($feeSettings),'cycle_id'=>(string)$feeCycle,'amount'=>'12000'],$feeFinanceCookie,true);
     check($code===302&&clearance_fee_amount($pdo,$feeCycle)==='12000.00'&&(float)clearance_fee_record($pdo,$feeId)['amount']===10000.0,'Rate change altered an existing quote.');
     set_clearance_fee_amount($pdo,$ids['FIN001'],$feeCycle,'10000');
     $feeReview='/officer/clearance_fee_review.php?id='.$feeId;
     [$code,$feeReviewPage]=http_call($feeReview,[],$feeFinanceCookie);check($code===200,'Assigned Finance officer cannot review the entry fee.');
     [$code]=http_call($feeReview,[],$officerCookie);check($code===403,'Another office viewed the fee review.');
-    $feeInput=['csrf_token'=>token_from($feeReviewPage),'payment_version'=>'1','mode'=>'APPROVE','confirm_payment'=>'1'];
-    [$code]=http_call($feeReview,$feeInput,$feeFinanceCookie,true);check($code===200&&clearance_fee_record($pdo,$feeId)['status']==='REQUESTED','Fee was approved without a receipt.');
+    $feeInput=['csrf_token'=>token_from($feeReviewPage),'payment_version'=>'2','mode'=>'APPROVE','confirm_payment'=>'1'];
+    [$code]=http_call($feeReview,$feeInput,$feeFinanceCookie,true);check($code===200&&clearance_fee_record($pdo,$feeId)['status']==='AWAITING_PAYMENT','Fee was approved without a receipt.');
     [$code]=http_call($feeReview,array_replace($feeInput,['mode'=>'CONTROL','control_number'=>'991234000001']),$feeFinanceCookie,true);check($code===302,'Entry-fee control number failed.');
-    $fee=clearance_fee_record($pdo,$feeId);check($fee['status']==='AWAITING_PAYMENT'&&(int)$fee['payment_version']===2,'Control number did not bind the payment version.');
+    $fee=clearance_fee_record($pdo,$feeId);check($fee['status']==='AWAITING_PAYMENT'&&(int)$fee['payment_version']===3,'Control number did not bind the payment version.');
     [$code,$feePage]=http_call('/student/clearance_fee.php',[],$startCookie);
-    $feeUpload=['csrf_token'=>token_from($feePage),'mode'=>'RECEIPT','payment_id'=>(string)$feeId,'payment_version'=>'2','control_number'=>'991234000001'];
+    $feeUpload=['csrf_token'=>token_from($feePage),'mode'=>'RECEIPT','payment_id'=>(string)$feeId,'payment_version'=>'3','control_number'=>'991234000001'];
     [$code,$missingFeeReceipt]=http_call('/student/clearance_fee.php',$feeUpload,$startCookie,true);
     check($code===200&&str_contains($missingFeeReceipt,'evidence-error')&&clearance_fee_record($pdo,$feeId)['status']==='AWAITING_PAYMENT','Receipt is not mandatory.');
     $feePdf=__DIR__.'/feature-entry-fee-receipt.pdf';$files[]=$feePdf;file_put_contents($feePdf,"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
@@ -724,17 +724,17 @@ try{
     [$code]=http_call('/student/clearance_fee.php',array_replace($feeUpload,['csrf_token'=>token_from($otherFeePage)])+['evidence[0]'=>new CURLFile($feePdf,'application/pdf','entry-fee.pdf')],$feeOtherCookie,true);
     check(in_array($code,[200,403],true)&&clearance_fee_record($pdo,$feeId)['status']==='AWAITING_PAYMENT','Another student uploaded a receipt for this payment.');
     [$code]=http_call('/student/clearance_fee.php',$feeUpload+['evidence[0]'=>new CURLFile($feePdf,'application/pdf','entry-fee.pdf')],$startCookie,true);check($code===302,'Entry fee receipt upload failed.');
-    $fee=clearance_fee_record($pdo,$feeId);$oldReceipt=(int)$fee['receipt_id'];check($fee['status']==='AWAITING_REVIEW'&&(int)$fee['payment_version']===3,'Uploading a receipt approved the fee or lost its version.');
+    $fee=clearance_fee_record($pdo,$feeId);$oldReceipt=(int)$fee['receipt_id'];check($fee['status']==='AWAITING_REVIEW'&&(int)$fee['payment_version']===4,'Uploading a receipt approved the fee or lost its version.');
     foreach([$startCookie,$feeFinanceCookie,$adminCookie] as $authorizedCookie){[$code,$pdfBody]=http_call('/files/clearance_fee_receipt.php?id='.$oldReceipt,[],$authorizedCookie);check($code===200&&str_starts_with($pdfBody,'%PDF'),'Authorized receipt download failed.');}
     foreach([$feeOtherCookie,$officerCookie] as $unauthorizedCookie){[$code]=http_call('/files/clearance_fee_receipt.php?id='.$oldReceipt,[],$unauthorizedCookie);check($code===403,'Entry fee receipt was exposed.');}
     [$code,$startForm]=http_call('/student/start.php',[],$startCookie);
-    [$code]=http_call('/student/start.php',['csrf_token'=>token_from($startForm),'academic_year'=>$cycle],$startCookie,true);check($code===200&&(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn()===$requestsBefore,'Unverified receipt unlocked clearance.');
+    check($code===200&&str_contains($startForm,'Entry-fee receipt received')&&clearance_fee_ready($pdo,$fee),'Receipt submission did not unlock clearance before Finance approval.');
     [$code,$feeReviewPage]=http_call($feeReview,[],$feeFinanceCookie);$feeInput['csrf_token']=token_from($feeReviewPage);
     [$code]=http_call($feeReview,array_replace($feeInput,['mode'=>'APPROVE','payment_version'=>'2']),$feeFinanceCookie,true);check($code===200&&clearance_fee_record($pdo,$feeId)['status']==='AWAITING_REVIEW','Stale approval bypassed receipt binding.');
-    [$code]=http_call($feeReview,array_replace($feeInput,['mode'=>'CONTROL','payment_version'=>'3','control_number'=>'991234000002']),$feeFinanceCookie,true);check($code===302,'Updating the entry fee control number failed.');
+    [$code]=http_call($feeReview,array_replace($feeInput,['mode'=>'CONTROL','payment_version'=>'4','control_number'=>'991234000002']),$feeFinanceCookie,true);check($code===302,'Updating the entry fee control number failed.');
     $fee=clearance_fee_record($pdo,$feeId);check($fee['receipt_id']===null&&$fee['status']==='AWAITING_PAYMENT'&&!clearance_fee_receipt($pdo,$fee),'Old receipt approved a new control number.');
     [$code,$feePage]=http_call('/student/clearance_fee.php',[],$startCookie);
-    $feeUpload=array_replace($feeUpload,['csrf_token'=>token_from($feePage),'payment_version'=>'4','control_number'=>'991234000002']);
+    $feeUpload=array_replace($feeUpload,['csrf_token'=>token_from($feePage),'payment_version'=>'5','control_number'=>'991234000002']);
     [$code]=http_call('/student/clearance_fee.php',$feeUpload+['evidence[0]'=>new CURLFile($feePdf,'application/pdf','new-entry-fee.pdf')],$startCookie,true);check($code===302,'New control-number receipt failed.');
     $fee=clearance_fee_record($pdo,$feeId);
     // A replacement remains separate evidence, invalidating an officer's open review.
@@ -750,7 +750,7 @@ try{
     migrate_clearance_fees($pdo);migrate_clearance_fees($pdo);
     check($legacyRequests===$pdo->query('SELECT * FROM clearance_requests ORDER BY id')->fetchAll()&&$legacyStages===$pdo->query('SELECT * FROM clearance_stages ORDER BY id')->fetchAll(),'Entry fee migration changed existing clearances.');
     echo "PASS: entry-fee gate, Finance-only rates, quote preservation, versioned controls/receipts, private downloads, verified approval and non-destructive repeat migration\n";
-    [$code,$startForm]=http_call('/student/start.php',[],$startCookie);check($code===200&&str_contains($startForm,'Entry fee approved'),'Approved fee did not unlock the start form.');
+    [$code,$startForm]=http_call('/student/start.php',[],$startCookie);check($code===200&&str_contains($startForm,'Entry-fee receipt received'),'Approved fee did not unlock the start form.');
     $requestsBefore=(int)$pdo->query('SELECT COUNT(*) FROM clearance_requests')->fetchColumn();
     $pdo->prepare('UPDATE users SET active=0 WHERE id=?')->execute([$ids['FIN001']]);
     $startStudentUser=$ids['IRDP/BTCCD/MA25/0003'];

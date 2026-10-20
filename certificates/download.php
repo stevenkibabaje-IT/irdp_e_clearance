@@ -20,12 +20,13 @@ $stmt = $pdo->prepare(
         cr.completed_at,
         c.certificate_number,
         c.verification_code,
-        c.issued_at
+        c.issued_at,
+        c.status AS certificate_status
      FROM clearance_requests cr
      INNER JOIN students s ON s.id = cr.student_id
      INNER JOIN users u ON u.id = s.user_id
      LEFT JOIN departments d ON d.id = s.department_id
-     INNER JOIN certificates c ON c.clearance_request_id = cr.id
+     INNER JOIN transcripts c ON c.clearance_request_id = cr.id AND c.certificate_number IS NOT NULL
      WHERE cr.id = ?
      LIMIT 1'
 );
@@ -45,6 +46,11 @@ if (current_user()['role'] === 'STUDENT' && (int) current_user()['student_id'] !
 if ($data['status'] !== 'COMPLETED' || !certificate_release_allowed($pdo, $requestId)) {
     http_response_code(409);
     exit('Certificate is not available yet.');
+}
+
+$latest=transcript_for_student($pdo,(int)$data['student_id_real'],$requestId);
+if ((!$latest && $data['certificate_status']!=='VALID') || ($latest && ($latest['status']!=='VALID' || !hash_equals((string)$latest['snapshot_sha256'],hash('sha256',(string)$latest['snapshot_json']))))) {
+    http_response_code(409); exit('This certificate has been revoked or its snapshot is invalid.');
 }
 
 pdf_certificate($data, 'IRDP-Certificate-' . $data['certificate_number'] . '.pdf');

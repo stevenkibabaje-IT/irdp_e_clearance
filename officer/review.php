@@ -52,6 +52,7 @@ if (!reviewer_assignment_valid($pdo, $stage, (int)$u['id'])) {
 }
 
 $isFinance = (int)$stage['step_number'] === 11;
+$financeFinalReady = !$isFinance || finance_final_approval_ready($pdo, (int)$stage['clearance_request_id']);
 if (!in_array($stage['status'], ['PENDING', 'IN_REVIEW'], true) && !($isFinance && $stage['status'] === 'REJECTED')) {
     http_response_code(409);
     exit('This stage has already been approved or is not available for review.');
@@ -67,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         verify_csrf();
         process_stage_decision($pdo,$stageId,(int)$u['id'],$_POST,$detailFields);
         flash('success', $isFinance
-            ? (($_POST['action']??'') === 'PAYMENT_REQUESTED' ? 'Control number sent to the student. Awaiting a payment receipt.' : 'Finance stage approved. Clearance completes when all 11 offices approve.')
+            ? (($_POST['action']??'') === 'PAYMENT_REQUESTED' ? 'Control number sent to the student. Awaiting a payment receipt.' : 'Final Finance approval recorded. Payment is locked and clearance is complete.')
             : (($_POST['action']??'')==='REJECTED'?'Stage rejected. Awaiting student response and evidence. Other offices can continue reviewing.':'Stage approved. Clearance completes when all 11 offices approve.'));
         redirect('officer/dashboard.php');
     } catch (Throwable $e) {
@@ -143,14 +144,16 @@ require_once __DIR__ . '/../includes/header.php';
 
     <section class="panel">
         <h2>Office Review</h2>
+        <fieldset <?= !$financeFinalReady ? 'disabled' : '' ?> style="border:0;padding:0;margin:0;min-width:0;">
         <?php if ($isFinance): ?>
+            <?php if (!$financeFinalReady): ?><div class="alert info">Finance clearance duties are locked until all other 10 offices approve. Verify the clearance entry-fee receipt under Clearance entry fees. This final stage unlocks automatically when the other offices finish.</div><?php else: ?><div class="alert info">All other 10 offices have approved. Finance can now complete the final clearance review.</div><?php endif; ?>
             <p class="muted">Review any other outstanding debts. The entry fee is handled separately before clearance starts. If another payment is required, send a control number and verify its receipt before approving.</p>
             <?php if (!finance_has_payment_request($existingDetails)): ?>
-            <form method="post"><?php csrf_field(); ?><input type="hidden" name="stage_id" value="<?= $stageId ?>"><input type="hidden" name="review_cycle" value="<?= (int)$stage['review_cycle'] ?>"><button class="btn primary" type="submit" name="action" value="APPROVED_NO_DEBT" onclick="return confirmAction('Confirm that this student has no other outstanding Finance debt?');"><?= icon('check-circle') ?> Approve — no other debt</button></form>
+            <form method="post"><?php csrf_field(); ?><input type="hidden" name="stage_id" value="<?= $stageId ?>"><input type="hidden" name="review_cycle" value="<?= (int)$stage['review_cycle'] ?>"><button class="btn primary" type="submit" name="action" value="APPROVED_NO_DEBT" <?= !$financeFinalReady ? 'disabled' : '' ?> onclick="return confirmAction('Confirm that this student has no other outstanding Finance debt?');"><?= icon('check-circle') ?> Approve — no other debt</button></form>
             <h3>Other debt requires payment</h3>
             <?php elseif (!$financeReceiptReady): ?><div class="alert info">A receipt for this outstanding payment must be verified before approval.</div><?php endif; ?>
         <?php else: ?>
-            <p class="muted">Complete the fields that apply to your office, then approve or reject the stage.</p>
+            <p class="muted"><?= e(office_review_guidance((int)$stage['step_number'])) ?></p>
         <?php endif; ?>
         <?php if($canAcceptCorrection): ?>
             <div class="alert info">The fields below show the previous office findings. After verifying the student's response and any attached files, choose <strong><?= e($approvalLabel) ?></strong> only when all office requirements have been resolved. This clears remaining amounts and missing-item findings for this office. Other offices review independently. The previous rejection stays in the history.</div>
@@ -213,11 +216,12 @@ require_once __DIR__ . '/../includes/header.php';
                     <?= icon('x-circle') ?> Reject
                 </button>
                 <?php endif; ?>
-                <button class="btn primary" type="submit" name="action" value="<?= e($approvalAction) ?>" <?= $isFinance && !$financeReceiptReady ? 'disabled' : '' ?> <?= !$isFinance ? "onclick=\"document.getElementById('comments').required=false;document.getElementById('corrective_instructions').required=false;\"" : '' ?>>
+                <button class="btn primary" type="submit" name="action" value="<?= e($approvalAction) ?>" <?= $isFinance && (!$financeReceiptReady || !$financeFinalReady) ? 'disabled' : '' ?> <?= !$isFinance ? "onclick=\"document.getElementById('comments').required=false;document.getElementById('corrective_instructions').required=false;\"" : '' ?>>
                     <?= icon('check-circle') ?> <?= e($approvalLabel) ?>
                 </button>
             </div>
         </form>
+        </fieldset>
     </section>
 </div>
 <section class="panel"><h2>Student responses and review history</h2><?php foreach($history as $item):?><article class="comment"><strong>Cycle <?=(int)$item['cycle_number']?></strong><p><?=e($item['student_response'])?></p><?php if($item['action']):?><p><?=e($item['action'])?>: <?=e($item['comments'])?><br><?=e($item['corrective_instructions'])?></p><?php endif;?></article><?php endforeach;?><?php foreach($evidence as $file):?><p>Cycle <?=(int)$file['cycle_number']?>: <a href="<?=e(url('files/evidence.php?id='.$file['id']))?>"><?=e($file['original_name'])?></a></p><?php endforeach;?></section>

@@ -28,7 +28,7 @@ if ($u) {
     <link rel="stylesheet" href="<?= e(url('assets/css/style.css?v=' . filemtime(__DIR__.'/../assets/css/style.css'))) ?>">
 </head>
 <body class="<?= $u ? 'authenticated-page' : 'public-page' ?>">
-<a class="skip-link" href="#main-content">Skip to main content / Nenda kwenye maudhui</a>
+<a class="skip-link" href="#main-content">Skip to main content</a>
 <?php if ($u): ?>
     <div class="app-shell" data-app-base="<?= e(url('')) ?>">
         <div class="navigation-backdrop" id="navigationBackdrop" aria-hidden="true" hidden></div>
@@ -60,7 +60,7 @@ if ($u) {
                     <span class="sidebar-section-label">CLEARANCE</span>
                     <a href="<?= e(url('admin/clearances.php')) ?>"><?= icon('clipboard-check') ?> <span>Clearance Monitoring</span></a>
                     <a href="<?= e(url('admin/clearance_period.php')) ?>"><?= icon('calendar') ?> <span>Clearance Period</span></a>
-                    <a href="<?= e(url('admin/transcripts.php')) ?>"><?= icon('file-text') ?> <span>Clearance Transcripts</span></a>
+                    <a href="<?= e(url('admin/transcripts.php')) ?>"><?= icon('file-text') ?> <span>Student Clearance Certificates</span></a>
                     <a href="<?= e(url('admin/reports.php')) ?>"><?= icon('chart') ?> <span>Reports</span></a>
                     <span class="sidebar-section-label">ADMINISTRATION</span>
                     <a href="<?= e(url('admin/users.php')) ?>"><?= icon('users') ?> <span>Users</span></a>
@@ -90,13 +90,13 @@ if ($u) {
 
                 <div class="topbar-title"><?= e(in_array($u['role'], ['OFFICER', 'SUPERVISOR'], true) ? $u['full_name'] : $pageTitle) ?></div>
 
-                <a class="icon-button notification-button" href="<?= e(url('student/notifications.php')) ?>" title="Notifications / Taarifa" aria-label="Notifications<?= $notificationCount > 0 ? ', ' . $notificationCount . ' unread' : '' ?>">
+                <a class="icon-button notification-button" href="<?= e(url('student/notifications.php')) ?>" title="Notifications" aria-label="Notifications<?= $notificationCount > 0 ? ', ' . $notificationCount . ' unread' : '' ?>">
                     <?= icon('bell') ?>
                     <?php if ($notificationCount > 0): ?><b class="notification-count" aria-hidden="true"><?= $notificationCount > 99 ? '99+' : $notificationCount ?></b><?php endif; ?>
                 </a>
 
                 <details class="account-menu">
-                    <summary class="user-chip" title="Account / Akaunti" aria-label="Account: <?= e($u['full_name']) ?>">
+                    <summary class="user-chip" title="Account" aria-label="Account: <?= e($u['full_name']) ?>">
                     <?php if ($u['role'] === 'STUDENT' && ($profileStudent = get_student($pdo, (int)$u['student_id']))): ?>
                         <img class="avatar profile-avatar" src="<?= e(profile_picture_url($profileStudent)) ?>" width="40" height="40" alt="My profile picture">
                     <?php else: ?>

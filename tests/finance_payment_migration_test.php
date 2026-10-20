@@ -42,7 +42,7 @@ try {
     $legacy=migration_fixture($pdo,$student,'2035/2036','PAUSED',false,false);
     issue_certificate($pdo,$completed);ensure_transcript($pdo,$student,(int)$pdo->query('SELECT id FROM users WHERE username="FIN001"')->fetchColumn(),$completed);
     $history=$pdo->query('SELECT * FROM stage_actions ORDER BY id')->fetchAll();
-    $documents=$pdo->query('SELECT * FROM certificates ORDER BY id')->fetchAll();
+    $documents=$pdo->query('SELECT * FROM transcripts WHERE certificate_number IS NOT NULL ORDER BY id')->fetchAll();
     $transcripts=$pdo->query('SELECT * FROM transcripts ORDER BY id')->fetchAll();
     $terminalStages=$pdo->query('SELECT * FROM clearance_stages WHERE clearance_request_id IN ('.$completed.','.$cancelled.') ORDER BY id')->fetchAll();
     $terminalRequests=$pdo->query('SELECT * FROM clearance_requests WHERE id IN ('.$completed.','.$cancelled.') ORDER BY id')->fetchAll();
@@ -59,7 +59,7 @@ try {
         migration_check($requestState===($request===$multiple?'PAUSED':'IN_PROGRESS'),'Reopening Finance cleared another office rejection or left the request paused.');
     }
     migration_check($pdo->query('SELECT * FROM stage_actions ORDER BY id')->fetchAll()===$history,'Historical decisions changed.');
-    migration_check($pdo->query('SELECT * FROM certificates ORDER BY id')->fetchAll()===$documents && $pdo->query('SELECT * FROM transcripts ORDER BY id')->fetchAll()===$transcripts,'Issued documents changed.');
+    migration_check($pdo->query('SELECT * FROM transcripts WHERE certificate_number IS NOT NULL ORDER BY id')->fetchAll()===$documents && $pdo->query('SELECT * FROM transcripts ORDER BY id')->fetchAll()===$transcripts,'Issued documents changed.');
     migration_check($pdo->query('SELECT * FROM clearance_stages WHERE clearance_request_id IN ('.$completed.','.$cancelled.') ORDER BY id')->fetchAll()===$terminalStages
         && $pdo->query('SELECT * FROM clearance_requests WHERE id IN ('.$completed.','.$cancelled.') ORDER BY id')->fetchAll()===$terminalRequests,'Completed or cancelled records changed.');
     $before=$pdo->query('SELECT * FROM clearance_stages ORDER BY id')->fetchAll();ensure_database_ready($pdo);

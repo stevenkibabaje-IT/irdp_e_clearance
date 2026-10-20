@@ -383,7 +383,7 @@ function get_clearance_stages(PDO $pdo, int $requestId): array
 function issue_certificate(PDO $pdo, int $requestId): array
 {
     if (!certificate_release_allowed($pdo, $requestId)) { throw new RuntimeException('Certificate release checks have not passed.'); }
-    $existing = $pdo->prepare('SELECT * FROM certificates WHERE clearance_request_id = ? LIMIT 1');
+    $existing = $pdo->prepare('SELECT * FROM transcripts WHERE clearance_request_id = ? AND certificate_number IS NOT NULL LIMIT 1');
     $existing->execute([$requestId]);
     $certificate = $existing->fetch();
 
@@ -394,14 +394,19 @@ function issue_certificate(PDO $pdo, int $requestId): array
     $certificateNumber = 'IRDP-CLR-' . date('Y') . '-' . str_pad((string) $requestId, 6, '0', STR_PAD_LEFT);
     $verificationCode = strtoupper(bin2hex(random_bytes(5)));
 
-    $stmt = $pdo->prepare(
-        'INSERT INTO certificates (clearance_request_id, certificate_number, verification_code, issued_at)
-         VALUES (?, ?, ?, NOW())'
-    );
-    $stmt->execute([$requestId, $certificateNumber, $verificationCode]);
-
-    $id = (int) $pdo->lastInsertId();
-    $result = $pdo->prepare('SELECT * FROM certificates WHERE id = ?');
+    $s=$pdo->prepare('SELECT id FROM transcripts WHERE clearance_request_id=? ORDER BY id LIMIT 1');
+    $s->execute([$requestId]); $id=$s->fetchColumn();
+    if ($id) {
+        $pdo->prepare('UPDATE transcripts SET certificate_number=?,verification_code=?,issued_at=NOW() WHERE id=?')
+            ->execute([$certificateNumber,$verificationCode,$id]);
+    } else {
+        $stmt=$pdo->prepare('INSERT INTO transcripts(student_id,clearance_request_id,cycle_id,result_source,certificate_number,verification_code,issued_at)
+            SELECT r.student_id,r.id,a.id,"CLEARANCE",?,?,NOW() FROM clearance_requests r JOIN academic_cycles a ON a.label=r.academic_year WHERE r.id=?');
+        $stmt->execute([$certificateNumber,$verificationCode,$requestId]);
+        if ($stmt->rowCount()!==1) { throw new RuntimeException('Certificate academic cycle was not found.'); }
+        $id=(int)$pdo->lastInsertId();
+    }
+    $result = $pdo->prepare('SELECT * FROM transcripts WHERE id = ?');
     $result->execute([$id]);
     return $result->fetch();
 }

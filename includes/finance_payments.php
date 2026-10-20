@@ -2,6 +2,16 @@
 declare(strict_types=1);
 
 /** Finance control numbers and receipt checks shared by student and officer workflows. */
+function finance_final_approval_ready(PDO $pdo, int $requestId): bool
+{
+    $query = $pdo->prepare('SELECT COUNT(*) AS total, SUM(cs.status="APPROVED") AS approved
+        FROM clearance_stages cs INNER JOIN workflow_steps ws ON ws.id=cs.workflow_step_id
+        WHERE cs.clearance_request_id=? AND ws.step_number BETWEEN 1 AND 10');
+    $query->execute([$requestId]);
+    $counts = $query->fetch();
+    return (int)$counts['total'] === 10 && (int)$counts['approved'] === 10;
+}
+
 function finance_control_number(mixed $value): string
 {
     $number = text_input(['control_number'=>$value], 'control_number', 30, true);

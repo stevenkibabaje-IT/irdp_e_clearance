@@ -128,7 +128,7 @@ try {
     preg_match('/(?:^|;)host=([^;]+)/',$dsn,$hostMatch);preg_match('/(?:^|;)port=(\d+)/',$dsn,$portMatch);
     $environment=getenv();$environment['DB_NAME']=$database;$environment['DB_HOST']=$hostMatch[1]??'127.0.0.1';$environment['DB_PORT']=$portMatch[1]??'3306';$environment['DB_USER']=getenv('IRDP_TEST_USER')?:'root';$environment['DB_PASS']=getenv('IRDP_TEST_PASSWORD')?:'';
     foreach(['ENABLED'=>'1','HOST'=>'127.0.0.1','PORT'=>$smtpPort,'ENCRYPTION'=>'none','USERNAME'=>'','PASSWORD'=>'','FROM_EMAIL'=>'sender@example.test','FROM_NAME'=>'IRDP OTP test','TIMEOUT'=>'3'] as $key=>$value){$environment['IRDP_SMTP_'.$key]=$value;}
-    $web=proc_open([PHP_BINARY,'-d','session.save_path='.$temporary.'/sessions','-S','127.0.0.1:'.$port,'-t',dirname(__DIR__),__DIR__.'/http_router.php'],[0=>['pipe','r'],1=>['file',$temporary.'/http.log','a'],2=>['file',$temporary.'/http.log','a']],$pipes,dirname(__DIR__),$environment);
+    $web=proc_open([PHP_BINARY,'-d','session.save_path="'.str_replace('\\','/',$temporary).'/sessions"','-S','127.0.0.1:'.$port,'-t',dirname(__DIR__),__DIR__.'/http_router.php'],[0=>['pipe','r'],1=>['file',$temporary.'/http.log','a'],2=>['file',$temporary.'/http.log','a']],$pipes,dirname(__DIR__),$environment);
     otp_check(is_resource($web),'HTTP fixture did not start.');fclose($pipes[0]);
     $ready=false;for($attempt=0;$attempt<50;$attempt++){$socket=@fsockopen('127.0.0.1',$port,$errno,$error,.1);if($socket){fclose($socket);$ready=true;break;}usleep(100000);}otp_check($ready,'HTTP fixture not ready.');
     $browser=new OtpTestBrowser('http://127.0.0.1:'.$port);$otherBrowser=new OtpTestBrowser('http://127.0.0.1:'.$port);
@@ -143,7 +143,8 @@ try {
     fclose($smtpPipes[1]);otp_check(proc_close($smtp)===0,'Local SMTP delivery failed.');$smtp=null;
     otp_check(is_file($temporary.'/message.txt'),'SMTP fixture received no email DATA.');
     $message=quoted_printable_decode(file_get_contents($temporary.'/message.txt'));
-    otp_check(str_contains($message,$users[10]['email']) && preg_match('/OTP yako ya kubadilisha nenosiri ni: ([0-9]{6})/',$message,$match)===1,'SMTP did not deliver the OTP to the registered email.');$httpOtp=$match[1];
+    otp_check(str_contains($message,$users[10]['email']) && preg_match('/Your password reset OTP is: ([0-9]{6})/',$message,$match)===1,'SMTP did not deliver the OTP to the registered email.');$httpOtp=$match[1];
+    otp_check(str_contains($message,'Hello ')&&str_contains($message,'Do not share this code with anyone.')&&str_contains($message,'Content-Language: en')&&!str_contains($message,'Habari ')&&!str_contains($message,'OTP yako'),'OTP email is not English.');
     [$status]=$browser->request('/auth/reset.php',['csrf_token'=>otp_csrf($html),'password'=>'Cedar ocean garden 72','confirm_password'=>'Cedar ocean garden 72']);
     otp_check($status===302,'Password form was reachable before OTP proof.');
     [$status,$otherForm]=$otherBrowser->request('/auth/forgot.php');

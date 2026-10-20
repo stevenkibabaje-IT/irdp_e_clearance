@@ -23,12 +23,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare(
             'SELECT
                 c.*,
+                c.status AS certificate_status,
                 cr.status,
                 u.full_name,
                 s.registration_number,
                 s.programme,
                 d.name AS department
-             FROM certificates c
+             FROM transcripts c
              INNER JOIN clearance_requests cr ON cr.id = c.clearance_request_id
              INNER JOIN students s ON s.id = cr.student_id
              INNER JOIN users u ON u.id = s.user_id
@@ -40,7 +41,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$certificateNumber, $verificationCode]);
         $result = $stmt->fetch();
 
-        if (!$result || $result['status'] !== 'COMPLETED' || !certificate_release_allowed($pdo, (int)$result['clearance_request_id'])) {
+        $latest=$result ? transcript_for_student($pdo,(int)$result['student_id'],(int)$result['clearance_request_id']) : null;
+        if (!$result || $result['status'] !== 'COMPLETED' || !certificate_release_allowed($pdo, (int)$result['clearance_request_id'])
+            || (!$latest && $result['certificate_status']!=='VALID')
+            || ($latest && ($latest['status']!=='VALID' || !hash_equals((string)$latest['snapshot_sha256'],hash('sha256',(string)$latest['snapshot_json']))))) {
             throw new RuntimeException('Certificate could not be verified. Check the certificate number and verification code.');
         }
     } catch (RuntimeException $e) {

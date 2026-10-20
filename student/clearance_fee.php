@@ -4,11 +4,15 @@ require_once __DIR__.'/../includes/bootstrap.php';
 require_role('STUDENT');
 $u=current_user();$period=clearance_period_state($pdo);$error='';$errors=[];
 if (get_student_clearance($pdo,(int)$u['student_id'])) { redirect('student/status.php'); }
+if ($period['is_open']) {
+    try { ensure_student_clearance_fee($pdo,(int)$u['id']); }
+    catch(Throwable $e) { $error=page_error($e,$errors); }
+}
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     try {
         verify_csrf();
-        if (($_POST['mode']??'')==='REQUEST') { request_clearance_fee($pdo,(int)$u['id']);flash('success','Request sent to Finance. Wait for your control number.'); }
-        else { process_clearance_fee($pdo,positive_id($_POST['payment_id']??null),(int)$u['id'],$_POST,upload_file_list($_FILES['evidence']??[]));flash('success','Receipt uploaded. Finance must verify the payment before Start Clearance is unlocked.'); }
+        if (($_POST['mode']??'')==='REQUEST') { request_clearance_fee($pdo,(int)$u['id']);flash('success','Your control number is ready.'); }
+        else { process_clearance_fee($pdo,positive_id($_POST['payment_id']??null),(int)$u['id'],$_POST,upload_file_list($_FILES['evidence']??[]));flash('success','Receipt received. You can now select Start Clearance.'); }
         redirect('student/clearance_fee.php');
     } catch(Throwable $e) { $error=page_error($e,$errors); }
 }
@@ -16,26 +20,28 @@ $fee=$period['cycle_id']?clearance_fee_for_cycle($pdo,(int)$u['student_id'],(int
 if ($fee) { $fee=clearance_fee_record($pdo,(int)$fee['id']); }
 $amount=$fee['amount']??clearance_fee_amount($pdo,(int)($period['cycle_id']??0));
 $receipt=$fee?clearance_fee_receipt($pdo,$fee):null;
+$ready=clearance_fee_ready($pdo,$fee);
 $pageTitle='Clearance Fee';require_once __DIR__.'/../includes/header.php';
 ?>
-<div class="page-heading"><div><span class="eyebrow">BEFORE STARTING CLEARANCE</span><h1>Clearance Fee</h1><p class="muted">Pay the entry fee, upload your receipt and wait for Finance approval.</p></div></div>
+<div class="page-heading"><div><span class="eyebrow">BEFORE STARTING CLEARANCE</span><h1>Clearance Fee</h1><p class="muted">Your control number is prepared automatically. Upload your payment receipt to unlock Start Clearance.</p></div></div>
 <?php if($error!==''): ?><div class="alert danger" role="alert"><?= e($error) ?></div><?php endif; ?>
 <section class="panel">
     <h2>Entry fee: TSh <?= e(number_format((float)$amount,2)) ?></h2>
     <p>Academic cycle: <strong><?= e($period['academic_cycle']??'Not yet selected') ?></strong>. This fee is separate from any other debt reviewed by Finance during clearance.</p>
     <?php if(!$period['is_open']): ?><div class="alert warning"><?= e(CLEARANCE_CLOSED_MESSAGE) ?></div><?php endif; ?>
+    <?php if($fee): clearance_fee_control_summary($fee); endif; ?>
     <?php if(!$fee): ?>
-        <p>Request a control number from Finance and Accounting. Clearance starts after your payment has been verified.</p>
-        <form method="post"><?php csrf_field(); ?><input type="hidden" name="mode" value="REQUEST"><button class="btn primary" type="submit" <?= $period['is_open']?'':'disabled' ?>><?= icon('file-text') ?> Request control number</button></form>
+        <p>Your control number will be prepared when clearance is open.</p>
+        <form method="post"><?php csrf_field(); ?><input type="hidden" name="mode" value="REQUEST"><button class="btn primary" type="submit" <?= $period['is_open']?'':'disabled' ?>><?= icon('file-text') ?> Prepare control number</button></form>
     <?php elseif($fee['status']==='REQUESTED'): ?>
-        <div class="alert info">Your request is pending. Finance and Accounting will issue your control number when the officer reviews it.</div>
+        <div class="alert info">Your control number will be prepared automatically when clearance is open.</div>
     <?php elseif($fee['status']==='APPROVED'): ?>
         <div class="alert success">Payment approved. Your entry fee is paid for this academic cycle.</div>
-        <a class="btn primary" href="<?= e(url('student/start.php')) ?>"><?= icon('plus') ?> Start Clearance</a>
+        <?php if($ready): ?><a class="btn primary" href="<?= e(url('student/start.php')) ?>"><?= icon('plus') ?> Start Clearance</a><?php endif; ?>
     <?php else: ?>
-        <div class="detail-grid"><div><span>Control number</span><strong><?= e($fee['control_number']) ?></strong></div><div><span>Payment status</span><strong><?= e(str_replace('_',' ',$fee['status'])) ?></strong></div></div>
-        <p>Pay TSh <?= e(number_format((float)$fee['amount'],2)) ?> using this control number. Upload the receipt below; uploading alone does not confirm payment.</p>
-        <?php if($fee['status']==='AWAITING_REVIEW'): ?><div class="alert info">Receipt submitted. Awaiting Finance verification.</div><?php endif; ?>
+        <p>Payment status: <strong><?= e(str_replace('_',' ',$fee['status'])) ?></strong>.</p>
+        <p>Entry fee: TSh <?= e(number_format((float)$fee['amount'],2)) ?>. Upload the receipt for the control number above to unlock Start Clearance.</p>
+        <?php if($ready): ?><div class="alert success">Receipt received. Start Clearance is ready. Finance verification remains pending.</div><a class="btn primary" href="<?= e(url('student/start.php')) ?>"><?= icon('plus') ?> Start Clearance</a><?php endif; ?>
         <?php if($receipt): ?><p><a href="<?= e(url('files/clearance_fee_receipt.php?id='.$receipt['id'])) ?>"><?= icon('download') ?> <?= e($receipt['original_name']) ?></a></p><?php endif; ?>
         <form method="post" enctype="multipart/form-data">
             <?php csrf_field(); ?><input type="hidden" name="mode" value="RECEIPT"><input type="hidden" name="payment_id" value="<?= (int)$fee['id'] ?>"><input type="hidden" name="payment_version" value="<?= (int)$fee['payment_version'] ?>"><input type="hidden" name="control_number" value="<?= e($fee['control_number']) ?>">

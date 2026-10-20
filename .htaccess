@@ -1,6 +1,16 @@
 Options -Indexes
 DirectoryIndex index.php
 
+# Initial student credentials are available only through the local workspace.
+<Files "README_NEW_STUDENT_ACCOUNTS.md">
+    Require all denied
+</Files>
+
+# The local main guide includes account credentials.
+<Files "README.md">
+    Require all denied
+</Files>
+
 # Keep local Git history and configuration out of the web root's public responses.
 RedirectMatch 404 "(?i)/\.git(?:/|$)"
 

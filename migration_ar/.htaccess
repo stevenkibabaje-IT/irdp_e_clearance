@@ -1,0 +1,6 @@
+Require local
+Options -Indexes
+DirectoryIndex index.php
+<FilesMatch "\.(sql|json|md|log)$">
+    Require all denied
+</FilesMatch>

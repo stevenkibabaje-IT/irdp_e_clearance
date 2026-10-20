@@ -6,7 +6,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 
 // Bump when schema or initial reference-data requirements change.
-const APPLICATION_SCHEMA_VERSION = '2026_runtime_v15_student_email_otp';
+const APPLICATION_SCHEMA_VERSION = '2026_runtime_v18_retire_import_runs';
 
 function database_schema_ready(PDO $db): bool
 {
@@ -188,16 +188,6 @@ CREATE TABLE IF NOT EXISTS notifications (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB
 SQL,
-        'certificates' => <<<'SQL'
-CREATE TABLE IF NOT EXISTS certificates (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    clearance_request_id INT NOT NULL UNIQUE,
-    certificate_number VARCHAR(80) NOT NULL UNIQUE,
-    verification_code VARCHAR(80) NOT NULL UNIQUE,
-    issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (clearance_request_id) REFERENCES clearance_requests(id) ON DELETE CASCADE
-) ENGINE=InnoDB
-SQL,
         'audit_logs' => <<<'SQL'
 CREATE TABLE IF NOT EXISTS audit_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -263,6 +253,8 @@ SQL,
     require_once __DIR__.'/clearance_fee_migrations.php';
     migrate_clearance_fees($db);
     migrate_retired_feature_tables($db);
+    require_once __DIR__.'/unified_documents_migrations.php';
+    migrate_unified_documents($db);
 
     foreach([
         ['notifications','idx_notifications_unread','user_id,is_read'],

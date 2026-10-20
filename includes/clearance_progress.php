@@ -2,6 +2,22 @@
 declare(strict_types=1);
 
 /** Shared, accessible progress summary for independently reviewed offices. */
+function student_clearance_stage_display(array $stages): array
+{
+    $approved=[];
+    foreach ($stages as $stage) {
+        $step=(int)$stage['step_number'];
+        if ($step>=1 && $step<=10 && $stage['status']==='APPROVED') { $approved[$step]=true; }
+    }
+    foreach ($stages as &$stage) {
+        if ((int)$stage['step_number']===11 && $stage['status']!=='APPROVED' && count($approved)!==10) {
+            $stage['status']='LOCKED';
+        }
+    }
+    unset($stage);
+    return $stages;
+}
+
 function clearance_progress(array $stages): void
 {
     $total = max(11, count($stages));
@@ -11,7 +27,7 @@ function clearance_progress(array $stages): void
     $progress = (int) round(($approved / $total) * 100);
     ?>
     <div class="clearance-progress">
-        <p class="muted clearance-progress-note">Each office reviews independently.</p>
+        <p class="muted clearance-progress-note">The other 10 offices review independently. Finance remains LOCKED until all 10 approve, then completes the final review.</p>
         <div class="clearance-progress-layout">
             <div class="progress-ring" role="progressbar" aria-label="Clearance progress"
                  aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $progress ?>"

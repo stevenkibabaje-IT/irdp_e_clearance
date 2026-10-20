@@ -3,6 +3,7 @@ declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(403);exit('Command line only.');}
 require_once __DIR__.'/../includes/installer.php';
 require_once __DIR__.'/../includes/functions.php';
+require_once __DIR__.'/../includes/demo_account_definitions.php';
 date_default_timezone_set('Africa/Dar_es_Salaam');
 $_SESSION=[];
 
@@ -65,8 +66,7 @@ try{
     demo_check($pdo->query('SELECT * FROM users ORDER BY id')->fetchAll()===$seededUsers&&$pdo->query('SELECT * FROM students ORDER BY id')->fetchAll()===$seededStudents,'Repeated seeding duplicated accounts or changed passwords.');
     demo_check(count($seededStudents)===15&&database_schema_ready($pdo),'Upgrade did not add exactly ten students or record runtime readiness.');
     echo "PASS: upgrade adds ten students to the original five, preserves passwords/clearance history and repeated seeding\n";
-    $readme=file_get_contents(__DIR__.'/../README.md');
-    $demoGuide=file_get_contents(__DIR__.'/../README_DEMO_ACCOUNTS.md');
+    $documentedAccounts=documented_demo_accounts();
     $records=[];
     foreach($definitions as $definition){
         $registration=$definition['registration_number'];$password=demo_student_initial_password($definition);
@@ -78,12 +78,12 @@ try{
         demo_check((int)$record['force_password_change']===0,'Demo account forces a password change for '.$registration.'.');
         demo_check($record['password_hash']!==$password&&password_verify($password,$record['password_hash']),'Demo password is plaintext or cannot be verified for '.$registration.'.');
         demo_check((password_get_info($record['password_hash'])['algoName']??'')==='argon2id','Demo password is not Argon2id for '.$registration.'.');
-        demo_check(str_contains($readme,'| '.$definition['full_name'].' | '.$registration.' | '.$password.' | '.$definition['programme'].' |'),'README credential row differs for '.$registration.'.');
-        demo_check(str_contains($demoGuide,'| '.$definition['full_name'].' | '.$registration.' | '.$password.' | '.$definition['programme'].' |'),'Demo guide credential row differs for '.$registration.'.');
+        $documented=$documentedAccounts[$registration]??[];
+        demo_check(($documented['full_name']??null)===$definition['full_name']&&($documented['password']??null)===$password&&($documented['programme']??null)===$definition['programme'],'README credential row differs for '.$registration.'.');
         $records[]=$record+['password'=>$password];
     }
     demo_check(count(array_unique(array_column($records,'username')))===15&&count(array_unique(array_column($records,'student_id')))===15,'Demo registration numbers are not unique.');
-    echo "PASS: fifteen unique active demo accounts, password rule, Argon2id hashes and both README credential tables\n";
+    echo "PASS: fifteen unique active demo accounts, password rule, Argon2id hashes and README credential tables\n";
 
     $cycle='2025/2026';$pdo->prepare('UPDATE clearance_period SET cycle_id=(SELECT id FROM academic_cycles WHERE label=?),mode="MANUAL_OPEN" WHERE id=1')->execute([$cycle]);
     $insertRequest=$pdo->prepare('INSERT INTO clearance_requests(student_id,academic_year,status,started_at) VALUES (?, ?, "IN_PROGRESS", NOW())');

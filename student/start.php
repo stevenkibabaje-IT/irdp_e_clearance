@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         require_clearance_period($pdo, $academicYear, true);
-        $entryFee = require_approved_clearance_fee($pdo, (int)$u['student_id'], $academicYear);
+        $entryFee = require_clearance_fee_receipt($pdo, (int)$u['student_id'], $academicYear);
 
         $insertRequest = $pdo->prepare(
             'INSERT INTO clearance_requests (student_id, academic_year, status, started_at)
@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'CLEARANCE_STARTED',
             (int) $u['id'],
             $requestId,
-            'Student started a new clearance request. Approved entry-fee payment '.$entryFee['id'].'.'
+            'Student started a new clearance request. Submitted entry-fee receipt for payment '.$entryFee['id'].'.'
         );
 
         $pdo->commit();
@@ -134,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $pageTitle = 'Start Clearance';
 $entryFee = $period['cycle_id'] ? clearance_fee_for_cycle($pdo,(int)$u['student_id'],(int)$period['cycle_id']) : null;
-$feeApproved = $entryFee && $entryFee['status']==='APPROVED';
+$feeApproved = clearance_fee_ready($pdo,$entryFee?:null);
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-heading">
@@ -149,7 +149,7 @@ require_once __DIR__ . '/../includes/header.php';
     <h2>Clearance Details</h2>
 
     <?php if (!$period['is_open']): ?><div class="alert warning"><?= e(CLEARANCE_CLOSED_MESSAGE) ?></div><?php endif; ?>
-    <?php if (!$feeApproved): ?><div class="alert info">Pay the clearance entry fee and wait for Finance approval before starting.</div><p><a class="btn primary" href="<?= e(url('student/clearance_fee.php')) ?>">Clearance Fee / Request control number</a></p><?php else: ?><div class="alert success">Entry fee approved: TSh <?= e(number_format((float)$entryFee['amount'],2)) ?>.</div><?php endif; ?>
+    <?php if (!$feeApproved): ?><div class="alert info">Pay the clearance entry fee and submit your payment receipt before starting.</div><p><a class="btn primary" href="<?= e(url('student/clearance_fee.php')) ?>">Clearance Fee / Upload receipt</a></p><?php else: ?><div class="alert success">Entry-fee receipt received: TSh <?= e(number_format((float)$entryFee['amount'],2)) ?>. You can start clearance.</div><?php endif; ?>
     <?php if ($error !== ''): ?>
         <div class="alert danger"><?= e($error) ?></div>
     <?php endif; ?>

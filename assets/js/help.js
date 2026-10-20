@@ -68,7 +68,7 @@
             question.hidden = !match;
             if (match) matches++;
         });
-        document.getElementById('helpSearchStatus').textContent = term ? `Maswali ${matches} yamepatikana.` : '';
+        document.getElementById('helpSearchStatus').textContent = term ? `${matches} matching question${matches === 1 ? '' : 's'}.` : '';
         document.getElementById('helpNoResults').hidden = matches !== 0;
     });
     // Also allow a bookmarked help link on the public landing page.

@@ -8,7 +8,7 @@ $departmentOfficeId=(int)$pdo->query('SELECT office_id FROM workflow_steps WHERE
 $pageTitle='Manage Users';require_once __DIR__.'/../includes/header.php';?>
 <div class="page-heading"><h1>Manage users</h1></div><div class="two-col"><section class="panel"><h2>Create account</h2><?php if($error):?><div class="alert danger"><?=e($error)?></div><?php endif;?><form method="post" data-department-office-id="<?= $departmentOfficeId ?>"><?php csrf_field();form_fields([
 'full_name'=>['label'=>'Full name','required'=>true,'maxlength'=>160],'username'=>['label'=>'Username / registration number','required'=>true,'maxlength'=>100],
-'email'=>['label'=>'Email (unverified until identity verification)','type'=>'email','maxlength'=>160],
+'email'=>['label'=>'Email','type'=>'email','maxlength'=>160],
 'password'=>['label'=>'Initial password ('.PASSWORD_MIN_LENGTH.'-'.PASSWORD_MAX_LENGTH.' characters)','type'=>'password','required'=>true,'maxlength'=>PASSWORD_MAX_LENGTH,'autocomplete'=>'new-password'],
 'confirm_password'=>['label'=>'Confirm initial password','type'=>'password','required'=>true,'maxlength'=>PASSWORD_MAX_LENGTH,'autocomplete'=>'new-password'],
 'role_id'=>['label'=>'Role','type'=>'select','required'=>true,'options'=>option_rows($roles)],'office_id'=>['label'=>'Explicit office review authority (required for Officers)','type'=>'select','options'=>option_rows($offices)],

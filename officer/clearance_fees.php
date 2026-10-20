@@ -13,7 +13,7 @@ $cycles=$pdo->query('SELECT ac.id,ac.label,COALESCE(fr.amount,10000.00) AS amoun
 $selected=isset($_POST['cycle_id'])?(int)$_POST['cycle_id']:(int)($period['cycle_id']??($cycles[0]['id']??0));
 $pageTitle='Clearance Fee Payments';require_once __DIR__.'/../includes/header.php';
 ?>
-<div class="page-heading"><div><span class="eyebrow">FINANCE AND ACCOUNTING</span><h1>Clearance Fee Payments</h1><p class="muted">Issue control numbers and verify the entry fee before students start clearance.</p></div></div>
+<div class="page-heading"><div><span class="eyebrow">FINANCE AND ACCOUNTING</span><h1>Clearance Fee Payments</h1><p class="muted">Review automatically prepared control numbers and verify submitted entry-fee receipts. Students can start clearance after submitting a receipt.</p></div></div>
 <?php if($error!==''): ?><div class="alert danger" role="alert"><?= e($error) ?></div><?php endif; ?>
 <section class="panel"><h2>Set clearance entry fee</h2><p>Default fee: TSh 10,000. Changes apply to new payment requests for the selected cycle. Existing requests and clearances retain their current terms.</p>
 <form method="post"><?php csrf_field(); ?>

@@ -36,7 +36,7 @@ function set_clearance_fee_amount(PDO $pdo, int $actor, int $cycle, mixed $value
 }
 function clearance_fee_for_cycle(PDO $pdo, int $student, int $cycle): ?array
 {
-    $s=$pdo->prepare('SELECT * FROM clearance_fee_payments WHERE student_id=? AND cycle_id=?');$s->execute([$student,$cycle]);
+    $s=$pdo->prepare('SELECT fp.*,s.user_id AS student_user_id FROM clearance_fee_payments fp INNER JOIN students s ON s.id=fp.student_id WHERE fp.student_id=? AND fp.cycle_id=?');$s->execute([$student,$cycle]);
     return $s->fetch() ?: null;
 }
 function clearance_fee_record(PDO $pdo, int $id, bool $lock=false): ?array
@@ -67,7 +67,12 @@ function request_clearance_fee(PDO $pdo, int $actor): int
         $period=require_clearance_period($pdo,null,true);
         if (get_student_clearance($pdo,$student)) { throw new RuntimeException('This registration number already has a clearance. Continue the existing request without another entry-fee payment.'); }
         $existing=clearance_fee_for_cycle($pdo,$student,(int)$period['cycle_id']);
-        if ($existing) { $pdo->commit();return (int)$existing['id']; }
+        if ($existing) {
+            if ($existing['status']==='REQUESTED' && !$existing['control_number']) {
+                generate_clearance_fee_control($pdo,(int)$existing['id'],$actor);
+            }
+            $pdo->commit();return (int)$existing['id'];
+        }
         $reviewer=find_office_reviewer($pdo,clearance_finance_office($pdo));
         if (!$reviewer) { throw new RuntimeException('No active Finance officer is assigned. Contact the administrator.'); }
         // Serialize the quote with changes to Finance's fee rate.
@@ -76,9 +81,64 @@ function request_clearance_fee(PDO $pdo, int $actor): int
         $pdo->prepare('INSERT INTO clearance_fee_payments(student_id,cycle_id,assigned_officer_id,amount) VALUES (?,?,?,?)')->execute([$student,$period['cycle_id'],$reviewer,$amount]);
         $id=(int)$pdo->lastInsertId();$fee=clearance_fee_record($pdo,$id);
         clearance_fee_audit($pdo,$fee,$actor,'REQUESTED');
-        notify($pdo,$reviewer,'Clearance fee control number requested',$user['full_name'].' requested a clearance entry-fee control number. Open Clearance Fee Payments.');
+        generate_clearance_fee_control($pdo,$id,$actor);
         $pdo->commit();return $id;
     } catch(Throwable $e) { if($pdo->inTransaction()){$pdo->rollBack();}throw $e; }
+}
+
+/** Generate a local demo reference while the caller holds the student's lock. */
+function generate_clearance_fee_control(PDO $pdo,int $id,int $actor): void
+{
+    if (!$pdo->inTransaction()) { throw new LogicException('Control generation requires a transaction.'); }
+    $fee=clearance_fee_record($pdo,$id,true);
+    if (!$fee || $fee['control_number'] || $fee['status']!=='REQUESTED') { return; }
+    for ($attempt=0;$attempt<10;$attempt++) {
+        $number='99'.str_pad((string)$id,10,'0',STR_PAD_LEFT).(string)random_int(100000,999999);
+        $s=$pdo->prepare('SELECT id FROM clearance_fee_payments WHERE control_number=? OR automatic_control_number=? LIMIT 1');$s->execute([$number,$number]);
+        if ($s->fetchColumn()) { continue; }
+        try {
+            $pdo->prepare('UPDATE clearance_fee_payments SET control_number=?,automatic_control_number=?,control_generated_at=NOW(),status="AWAITING_PAYMENT",payment_version=payment_version+1 WHERE id=?')->execute([$number,$number,$id]);
+            clearance_fee_audit($pdo,clearance_fee_record($pdo,$id),$actor,'CONTROL_GENERATED');
+            $generated=clearance_fee_record($pdo,$id);
+            $time=new DateTimeImmutable($generated['control_generated_at'],new DateTimeZone('Africa/Dar_es_Salaam'));
+            notify($pdo,(int)$fee['student_user_id'],'Clearance fee control number',
+                'Your demo control number is '.$number.'. Entry fee: TSh '.number_format((float)$fee['amount'],2).'.'
+                ."\nGenerated: ".$time->format('l, d F Y').' at '.$time->format('H:i:s').' EAT.'
+                ."\nThis reference is for the test system. Open Clearance Fee and upload your payment receipt to unlock Start Clearance.");
+            return;
+        } catch (PDOException $error) {
+            if ((int)($error->errorInfo[1]??0)!==1062) { throw $error; }
+        }
+    }
+    throw new RuntimeException('A control number could not be prepared. Please try again.');
+}
+
+/** Login and existing student sessions share this idempotent preparation path. */
+function ensure_student_clearance_fee(PDO $pdo,int $actor): ?array
+{
+    $user=user_record($pdo,$actor);
+    if (!$user || !(int)$user['active'] || $user['role_name']!=='STUDENT') { return null; }
+    $s=$pdo->prepare('SELECT id FROM students WHERE user_id=?');$s->execute([$actor]);$student=(int)$s->fetchColumn();
+    if (!$student || get_student_clearance($pdo,$student)) { return null; }
+    $period=clearance_period_state($pdo);
+    if (!$period['is_open']) { return null; }
+    return clearance_fee_record($pdo,request_clearance_fee($pdo,$actor));
+}
+
+function clearance_fee_ready(PDO $pdo,?array $fee): bool
+{
+    return $fee && in_array($fee['status'],['AWAITING_REVIEW','APPROVED'],true)
+        && ($fee['status']!=='APPROVED' || ($fee['approved_by'] && $fee['approved_at']))
+        && clearance_fee_receipt($pdo,$fee)!==null;
+}
+
+function clearance_fee_control_summary(array $fee): void
+{
+    if (!$fee['control_number']) { return; }
+    $generated=$fee['control_generated_at']?new DateTimeImmutable($fee['control_generated_at'],new DateTimeZone('Africa/Dar_es_Salaam')):null;
+    ?><div class="detail-grid"><div><span>Control number</span><strong><?= e($fee['control_number']) ?></strong></div>
+    <?php if ($generated): ?><div><span>Day</span><strong><?= e($generated->format('l')) ?></strong></div><div><span>Date</span><strong><?= e($generated->format('d F Y')) ?></strong></div><div><span>Time (EAT)</span><strong><?= e($generated->format('H:i:s')) ?></strong></div><?php endif; ?></div>
+    <?php if ($fee['automatic_control_number'] && $fee['automatic_control_number']===$fee['control_number']): ?><p class="muted">Demo payment reference.</p><?php endif;
 }
 function clearance_fee_receipt(PDO $pdo,array $fee): ?array
 {
@@ -109,6 +169,7 @@ function process_clearance_fee(PDO $pdo,int $id,int $actor,array $input,array $f
         if (!clearance_fee_access($pdo,$fee,$actor) || !$user) { throw new RuntimeException('Access denied.'); }
         if ($fee['status']==='APPROVED') { throw new RuntimeException('This fee is already approved and cannot be changed.'); }
         if ($version!==(int)$fee['payment_version']) { throw new RuntimeException('This payment changed. Refresh before continuing.'); }
+        if ($mode!=='APPROVE' && get_student_clearance($pdo,(int)$fee['student_id'])) { throw new RuntimeException('Clearance has started. The entry-fee control number and receipt cannot be changed.'); }
         if ($mode==='RECEIPT') {
             if ($user['role_name']!=='STUDENT' || (int)$fee['student_user_id']!==$actor) { throw new RuntimeException('Only the student can upload the payment receipt.'); }
             require_clearance_period($pdo,$fee['academic_cycle'],true);
@@ -122,20 +183,23 @@ function process_clearance_fee(PDO $pdo,int $id,int $actor,array $input,array $f
             $receipt=(int)$pdo->lastInsertId();
             $pdo->prepare('UPDATE clearance_fee_payments SET status="AWAITING_REVIEW",payment_version=?,receipt_id=? WHERE id=?')->execute([$version,$receipt,$id]);
             notify($pdo,(int)$fee['assigned_officer_id'],'Clearance fee receipt submitted','Verify the payment receipt for '.$fee['registration_number'].' in Clearance Fee Payments.');
+            notify($pdo,(int)$fee['student_user_id'],'Clearance fee receipt received','Your receipt has been received. You can now select Start Clearance. Finance will review the payment separately.');
             $action='RECEIPT_SUBMITTED';
         } else {
             if ((int)$fee['assigned_officer_id']!==$actor || !clearance_fee_officer($pdo,$actor)) { throw new RuntimeException('Only the assigned Finance officer can decide this payment.'); }
             if ($mode==='CONTROL') {
                 $number=finance_control_number($input['control_number']??null);
                 if ($number===$fee['control_number']) { throw new RuntimeException('This control number has already been sent. Verify the receipt or wait for payment.'); }
-                $pdo->prepare('UPDATE clearance_fee_payments SET control_number=?,status="AWAITING_PAYMENT",payment_version=payment_version+1,receipt_id=NULL WHERE id=?')->execute([$number,$id]);
+                $duplicate=$pdo->prepare('SELECT id FROM clearance_fee_payments WHERE id<>? AND (control_number=? OR automatic_control_number=?) LIMIT 1');$duplicate->execute([$id,$number,$number]);
+                if ($duplicate->fetchColumn()) { throw new RuntimeException('This control number belongs to another payment.'); }
+                $pdo->prepare('UPDATE clearance_fee_payments SET control_number=?,automatic_control_number=NULL,control_generated_at=NOW(),status="AWAITING_PAYMENT",payment_version=payment_version+1,receipt_id=NULL WHERE id=?')->execute([$number,$id]);
                 notify($pdo,(int)$fee['student_user_id'],'Clearance fee control number','Pay TSh '.number_format((float)$fee['amount'],2).' using '.$number.' and upload the receipt under Clearance Fee.');
                 $action='CONTROL_ISSUED';
             } else {
                 if ($fee['status']!=='AWAITING_REVIEW' || !clearance_fee_receipt($pdo,$fee)) { throw new RuntimeException('A receipt for the current control number is required before approval.'); }
                 if (($input['confirm_payment']??null)!=='1') { throw new RuntimeException('Confirm that you verified the payment before approving.'); }
                 $pdo->prepare('UPDATE clearance_fee_payments SET status="APPROVED",approved_by=?,approved_at=NOW() WHERE id=?')->execute([$actor,$id]);
-                notify($pdo,(int)$fee['student_user_id'],'Clearance fee approved','Your clearance fee payment is approved. You can now select Start Clearance.');
+                notify($pdo,(int)$fee['student_user_id'],'Clearance fee approved','Finance has verified and approved your clearance entry-fee payment.');
                 $action='APPROVED';
             }
         }
@@ -146,13 +210,13 @@ function process_clearance_fee(PDO $pdo,int $id,int $actor,array $input,array $f
         if($stored!==null){private_delete('evidence',$stored);}throw $e;
     }
 }
-function require_approved_clearance_fee(PDO $pdo,int $student,string $cycle): array
+function require_clearance_fee_receipt(PDO $pdo,int $student,string $cycle): array
 {
     $s=$pdo->prepare('SELECT fp.*,s.user_id AS student_user_id FROM clearance_fee_payments fp
         INNER JOIN academic_cycles ac ON ac.id=fp.cycle_id INNER JOIN students s ON s.id=fp.student_id
         WHERE fp.student_id=? AND ac.label=? FOR UPDATE');$s->execute([$student,$cycle]);$fee=$s->fetch();
-    if (!$fee || $fee['status']!=='APPROVED' || !$fee['approved_by'] || !$fee['approved_at'] || !clearance_fee_receipt($pdo,$fee)) {
-        throw new RuntimeException('Pay the clearance entry fee and wait for Finance approval before starting clearance.');
+    if (!clearance_fee_ready($pdo,$fee?:null)) {
+        throw new RuntimeException('Pay the clearance entry fee and submit a receipt for your current control number before starting clearance.');
     }
     return $fee;
 }

@@ -1,0 +1,4 @@
+Options -Indexes
+Require local
+RewriteEngine On
+RewriteRule ^(?!index\.php$|auth/(?:login|logout|session|change_password)\.php$|student/(?:dashboard|clearance_fee|start|status|resubmit)\.php$|officer/dashboard\.php$|admin/dashboard\.php$|assets/).* - [F]

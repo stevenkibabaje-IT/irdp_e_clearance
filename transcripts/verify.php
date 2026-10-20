@@ -12,7 +12,7 @@ $snapshot = $valid ? json_decode($doc['snapshot_json'], true) : null;
 $valid = $valid && is_array($snapshot);
 $isClearance = $valid && $doc['result_source'] === 'CLEARANCE'
     && ($snapshot['document_type'] ?? '') === 'CLEARANCE_TRANSCRIPT';
-$pageTitle = 'Clearance Transcript Verification';
+$pageTitle = 'Student Clearance Certificate Verification';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <section class="panel" style="max-width:720px;margin:auto">
@@ -22,10 +22,10 @@ require_once __DIR__ . '/../includes/header.php';
     <?php elseif ($valid): ?>
         <div class="alert success">VALID</div>
         <?php if (!$isClearance): ?>
-            <div class="alert info">Previous transcript format. Download the current clearance transcript from your dashboard.</div>
+            <div class="alert info">Previous document format. Download the current Student Clearance Certificate from your dashboard.</div>
         <?php endif; ?>
         <div class="detail-grid">
-            <div><span>Document type</span><strong><?= $isClearance ? 'Clearance transcript' : 'Previous transcript format' ?></strong></div>
+            <div><span>Document type</span><strong><?= $isClearance ? 'Student Clearance Certificate' : 'Previous document format' ?></strong></div>
             <div><span>Student</span><strong><?= e($snapshot['student']['name'] ?? '-') ?></strong></div>
             <div><span>Registration</span><strong><?= e($snapshot['student']['registration_number'] ?? '-') ?></strong></div>
             <div><span>Programme</span><strong><?= e($snapshot['student']['programme'] ?? '-') ?></strong></div>

@@ -37,7 +37,7 @@ try {
     $admin=(int)$pdo->query("SELECT id FROM users WHERE username='admin'")->fetchColumn();
     $pdo->prepare('UPDATE users SET email=? WHERE id=?')->execute(['student@example.test',$user]);
     $pdo->prepare('UPDATE users SET email=? WHERE id=?')->execute(['admin@example.test',$admin]);
-    notify($pdo,$user,'Clearance stage approved','Stage 1 approved. Unicode: mwanafunzi ✓');
+    notify($pdo,$user,'Notification delivery check','Delivery confirmed. Unicode: student ✓');
     $notification=(int)$pdo->query('SELECT MAX(id) FROM notifications')->fetchColumn();
     queue_notification_email($pdo,$notification);
     email_check((int)$pdo->query('SELECT COUNT(*) FROM email_outbox')->fetchColumn()===1,'Notification queued more than once.');
@@ -67,7 +67,12 @@ try {
     email_check($result['sent']===1&&$result['retry']===0,'PHPMailer did not send to local SMTP.');
     fclose($smtpPipes[1]);email_check(proc_close($smtp)===0,'SMTP fixture failed.');$smtp=null;
     $message=file_get_contents($messagePath);
-    email_check(str_contains($message,'student@example.test')&&str_contains($message,'IRDP e-Clearance: Clearance stage approved')&&str_contains(quoted_printable_decode($message),'mwanafunzi ✓'),'SMTP message recipient, subject or Unicode body missing.');
+    $englishBody=quoted_printable_decode($message);
+    email_check(str_contains($englishBody,'Hello ')&&str_contains($englishBody,'Sign in to view more details:')&&str_contains($englishBody,'This is an automated message from the system.')&&!str_contains($englishBody,'Habari '),'Notification email envelope is not English.');
+    $legacy="Ofisi: Library\nUamuzi: REJECTED\nOfisi ya Library imekataa hatua hii. Rekebisha yaliyoelekezwa kabla ya kutuma tena.\nMaelekezo: Return the book.\nHatua inayofuata: Fungua My Clearance kufuatilia maamuzi ya ofisi zilizobaki.";
+    $translated=notification_email_message($legacy);
+    email_check(str_contains($translated,'Office: Library')&&str_contains($translated,'Decision: REJECTED')&&str_contains($translated,'Instructions: Return the book.')&&str_contains($translated,'Next step: Open My Clearance')&&!str_contains($translated,'Ofisi ya'),'Queued legacy email templates were not converted to English.');
+    email_check(str_contains($message,'student@example.test')&&str_contains($message,'IRDP e-Clearance: Notification delivery check')&&str_contains(quoted_printable_decode($message),'student ✓')&&str_contains($message,'Content-Language: en'),'SMTP recipient, English language header, subject or Unicode body missing.');
     $calls=0;process_notification_emails($pdo,20,$config,function()use(&$calls){$calls++;});email_check($calls===0,'Sent mail was sent again.');
     echo "PASS: real PHPMailer SMTP delivery, recipient, Unicode content and no re-send of SENT emails\n";
 
@@ -114,18 +119,43 @@ try {
     ],review_fields(1));
     $s=$pdo->prepare('SELECT n.id,n.title,n.message,q.recipient FROM notifications n JOIN email_outbox q ON q.notification_id=n.id WHERE n.user_id=? AND n.title LIKE "Clearance stage rejected%" ORDER BY n.id DESC LIMIT 1');$s->execute([$user]);$notice=$s->fetch();
     email_check($notice&&str_contains($notice['title'],$library['office_name'])&&str_contains($notice['message'],'Stage: 1 / 11')&&str_contains($notice['message'],'2038/2039')&&str_contains($notice['message'],'REJECTED')&&str_contains($notice['message'],'Kitabu hakijarudishwa.')&&str_contains($notice['message'],'12,500.00')&&str_contains($notice['message'],'Rudisha kitabu kwenye ofisi ya Library.'),'Library rejection email lost its office, stage, decision, amount or instructions.');
+    $storedNotice=$notice;
+    $summary=notification_email_body($notice['title'],$notice['message']);
+    email_check(str_contains($summary,'Decision: REJECTED')&&str_contains($summary,'Office: '.$library['office_name'])&&str_contains($summary,'Stage: 1 / 11')&&str_contains($summary,'2038/2039')&&str_contains($summary,'/student/status.php')&&!str_contains($summary,'Kitabu hakijarudishwa.')&&!str_contains($summary,'Rudisha kitabu'),'Rejection email summary contains original remarks or lost its decision, context or link.');
+    $multiline="Ofisi: Library\nStage: 1 / 11\n\nUamuzi: REJECTED\nMaelezo ya ofisi: LIPA\nmaelezo mengine\nMaelekezo: Rudisha kitabu.\n";
+    $legacySummary=notification_email_body($notice['title'],$multiline);
+    email_check(str_contains($legacySummary,'Decision: REJECTED')&&!str_contains($legacySummary,'LIPA')&&!str_contains($legacySummary,'maelezo mengine')&&!str_contains($legacySummary,'Rudisha'),'Legacy multiline remarks leaked into the English summary.');
+    email_check(notification_email_message($storedNotice['message'])===$notice['message'],'Rendering an email changed the original in-app notification.');
     $sport=email_stage_fixture($pdo,$user,2,'2040/2041');
     process_stage_decision($pdo,(int)$sport['id'],(int)$sport['assigned_officer_id'],[
         'action'=>'APPROVED','review_cycle'=>'1','amount'=>'0','comments'=>'Ada ya michezo imelipwa.','corrective_instructions'=>'',
     ],review_fields(2));
     $s=$pdo->prepare('SELECT n.title,n.message FROM notifications n JOIN email_outbox q ON q.notification_id=n.id WHERE n.user_id=? AND n.title LIKE "Clearance stage approved%" ORDER BY n.id DESC LIMIT 1');$s->execute([$user]);$notice=$s->fetch();
     email_check($notice&&str_contains($notice['title'],$sport['office_name'])&&str_contains($notice['message'],'Stage: 2 / 11')&&str_contains($notice['message'],'APPROVED')&&str_contains($notice['message'],'Ada ya michezo imelipwa.')&&!str_contains($notice['message'],'Kitabu hakijarudishwa.'),'Sports approval used another office\'s message or omitted its decision.');
+    $summary=notification_email_body($notice['title'],$notice['message']);
+    email_check(str_contains($summary,'Decision: APPROVED')&&!str_contains($summary,'Ada ya michezo imelipwa.'),'Approval email included the officer-entered remarks.');
     $finance=email_stage_fixture($pdo,$user,11,'2042/2043');
     process_stage_decision($pdo,(int)$finance['id'],(int)$finance['assigned_officer_id'],[
         'action'=>'PAYMENT_REQUESTED','review_cycle'=>'1','control_number'=>'991234567890',
     ],review_fields(11));
     $s=$pdo->prepare('SELECT n.title,n.message FROM notifications n JOIN email_outbox q ON q.notification_id=n.id WHERE n.user_id=? AND n.title LIKE "Finance payment required%" ORDER BY n.id DESC LIMIT 1');$s->execute([$user]);$notice=$s->fetch();
-    email_check($notice&&str_contains($notice['title'],$finance['office_name'])&&str_contains($notice['message'],'Stage: 11 / 11')&&str_contains($notice['message'],'PAYMENT REQUIRED')&&str_contains($notice['message'],'991234567890')&&str_contains($notice['message'],'pakia receipt'),'Finance email omitted its stage, control number or payment instructions.');
+    email_check($notice&&str_contains($notice['title'],$finance['office_name'])&&str_contains($notice['message'],'Stage: 11 / 11')&&str_contains($notice['message'],'PAYMENT REQUIRED')&&str_contains($notice['message'],'991234567890')&&str_contains($notice['message'],'upload the receipt'),'Finance email omitted its stage, control number or payment instructions.');
+    $summary=notification_email_body($notice['title'],$notice['message']);
+    email_check(str_contains($summary,'Decision: PAYMENT REQUIRED')&&str_contains($summary,'amount, control number and payment instructions')&&str_contains($summary,'/student/status.php'),'Finance summary omitted the payment action or details link.');
+    $summary=notification_email_body('Clearance completed',"Ofisi: Library\nStage: 1 / 11\n\nMaelezo ya ofisi: Imekamilika.");
+    email_check(str_contains($summary,'Status: COMPLETED')&&str_contains($summary,'Student Clearance Certificate')&&!str_contains($summary,'Imekamilika.'),'Completion email omitted the certificate action or leaked original remarks.');
+    echo "PASS: English-only decision summaries, legacy multiline remarks, original in-app comments and My Clearance links\n";
+    $summaryPath=$runtime.'/summary-message.txt';
+    $smtp=proc_open([PHP_BINARY,__DIR__.'/email_smtp_fixture.php',$summaryPath],[0=>['pipe','r'],1=>['pipe','w'],2=>['file',$runtime.'/smtp.log','a']],$smtpPipes);
+    email_check(is_resource($smtp),'Summary SMTP fixture failed to start.');fclose($smtpPipes[0]);
+    $address=trim((string)fgets($smtpPipes[1]));
+    email_check((bool)preg_match('/^127\.0\.0\.1:([0-9]+)$/D',$address,$match),'Summary SMTP address unavailable.');$config['port']=(int)$match[1];
+    $result=process_notification_emails($pdo,1,$config,null,(int)$storedNotice['id']);
+    email_check($result['sent']===1,'Summary email was not delivered to the local fixture.');
+    fclose($smtpPipes[1]);email_check(proc_close($smtp)===0,'Summary SMTP fixture failed.');$smtp=null;
+    $deliveredSummary=quoted_printable_decode(file_get_contents($summaryPath));
+    email_check(str_contains($deliveredSummary,'Decision: REJECTED')&&str_contains($deliveredSummary,'/student/status.php')&&!str_contains($deliveredSummary,'Kitabu hakijarudishwa.')&&!str_contains($deliveredSummary,'Rudisha kitabu'),'SMTP sent original remarks instead of the English decision summary.');
+    echo "PASS: actual SMTP decision email uses the English summary and retains the My Clearance link\n";
     echo "PASS: actual Library rejection, Sports approval and Finance payment produce different stage-specific queued emails\n";
 
     $environment=getenv();$environment['DB_HOST']=DB_HOST;$environment['DB_PORT']=(string)DB_PORT;$environment['DB_NAME']=$database;$environment['DB_USER']=DB_USER;$environment['DB_PASS']=DB_PASS;

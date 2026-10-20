@@ -82,7 +82,7 @@ try {
     $newStudentUser=(int)$pdo->query('SELECT id FROM users WHERE username="'.$definitions[3]['registration_number'].'"')->fetchColumn();
     $entryFeeId=request_clearance_fee($pdo,$newStudentUser);
     $financeUser=(int)$pdo->query('SELECT id FROM users WHERE username="FIN001"')->fetchColumn();
-    process_clearance_fee($pdo,$entryFeeId,$financeUser,['mode'=>'CONTROL','payment_version'=>'1','control_number'=>'991234567899']);
+    process_clearance_fee($pdo,$entryFeeId,$financeUser,['mode'=>'CONTROL','payment_version'=>(string)clearance_fee_record($pdo,$entryFeeId)['payment_version'],'control_number'=>'991234567899']);
     $fixture = [
         'session_directory'=>$temporary.'/sessions',
         'admin'=>['username'=>'admin', 'password'=>'Admin@IRDP2026'],
@@ -122,7 +122,7 @@ try {
     $environment['DB_HOST'] = $hostMatch[1] ?? '127.0.0.1'; $environment['DB_PORT'] = $portMatch[1] ?? '3306';
     $environment['DB_NAME'] = $database; $environment['DB_USER'] = getenv('IRDP_TEST_USER') ?: 'root';
     $environment['DB_PASS'] = getenv('IRDP_TEST_PASSWORD') ?: '';
-    $web = proc_open([PHP_BINARY, '-d', 'session.save_path='.$temporary.'/sessions', '-S', '127.0.0.1:'.$port, '-t', dirname(__DIR__), __DIR__.'/http_router.php'],
+    $web = proc_open([PHP_BINARY, '-d', 'session.save_path="'.str_replace('\\','/',$temporary).'/sessions"', '-S', '127.0.0.1:'.$port, '-t', dirname(__DIR__), __DIR__.'/http_router.php'],
         [0=>['pipe','r'], 1=>['file',$temporary.'/http.log','a'], 2=>['file',$temporary.'/http.log','a']], $pipes, dirname(__DIR__), $environment);
     if (!is_resource($web)) { throw new RuntimeException('Test server could not start.'); } fclose($pipes[0]);
     $ready = false;

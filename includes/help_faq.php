@@ -1,62 +1,65 @@
 <div class="help-faq">
-                <details>
-                    <summary>Ninaingiaje kwenye mfumo?</summary>
-                    <p>Bonyeza <a href="<?= e(url('auth/login.php')) ?>">Login</a>. Mwanafunzi atumie namba yake yote ya usajili, pamoja na alama za <strong>/</strong>, na nenosiri lake. Mtumishi atumie username na nenosiri alilopewa. Baada ya kuingia, utaelekezwa kwenye Dashboard ya akaunti yako. Mwanafunzi anaweza kubadilisha nenosiri kwa hiari kupitia <strong>profile ya juu kulia &rarr; Change Password</strong>.</p>
-                </details>
-                <details>
-                    <summary>Ninalipaje ada na kuanza clearance?</summary>
-                    <div class="help-answer">
-                        <ol>
-                            <li>Hakikisha Dashboard inaonyesha <strong>CLEARANCE OPEN</strong> na academic cycle unayotaka. Admin ndiye anayefungua kipindi cha clearance.</li>
-                            <li>Fungua <strong>Clearance Fee</strong> na bonyeza <strong>Request control number</strong>. Finance and Accounting atatoa namba ya malipo.</li>
-                            <li>Lipa kiasi kinachoonyeshwa kwa control number uliyopewa. Ada ya kawaida ni <strong>TSh 10,000</strong>; Finance anaweza kuweka kiwango cha cycle husika.</li>
-                            <li>Kwenye <strong>Clearance Fee</strong>, chagua receipt moja ya PDF, JPG au PNG, hadi <strong>5 MB</strong>, kisha bonyeza <strong>Upload payment receipt</strong>.</li>
-                            <li>Subiri Finance ahakiki na aidhinishe malipo. <strong>Kupakia receipt peke yake hakufungui Start Clearance.</strong></li>
-                            <li>Malipo yakiwa <strong>APPROVED</strong>, bonyeza <strong>Start Clearance</strong>, chagua academic cycle iliyofunguliwa, kisha tuma ombi. Ofisi zote 11 zitaanza <strong>PENDING</strong>.</li>
-                        </ol>
-                        <p><strong>Namba moja ya usajili inaanzisha clearance moja tu.</strong> Kama ombi tayari lipo, endelea kupitia <strong>Continue Clearance / My Clearance</strong>. Academic cycle mpya hairuhusu ombi la pili au ada nyingine ya kuanza. Ombi likifutwa, wasiliana na Admin.</p>
-                    </div>
-                </details>
-                <details>
-                    <summary>Clearance imefungwa au Start Clearance haipatikani?</summary>
-                    <p>Ujumbe wa <strong>CLEARANCE CLOSED</strong> unamaanisha kipindi hakijafunguliwa na Admin au muda wake umeisha. Unaweza kuingia na kuona taarifa zako, lakini kuomba control number ya ada, kupakia receipt au kutuma marekebisho kunahitaji kipindi kiwe wazi. Hata ada ikiwa imeidhinishwa, kuanza clearance kunasubiri kipindi kifunguliwe kwa cycle hiyo. Kipindi kikiwa wazi na bado hujaanza, angalia <strong>Clearance Fee</strong> na subiri malipo yawe <strong>APPROVED</strong>. Ukiona <strong>Continue Clearance</strong>, ombi tayari lipo; fungua <strong>My Clearance</strong>.</p>
-                </details>
-                <details>
-                    <summary>Ninafuatiliaje maendeleo ya clearance?</summary>
-                    <p>Fungua <strong>My Clearance</strong> kuona hali ya ofisi zote 11, au kengele ya <strong>Notifications</strong> juu kulia kuona taarifa za maamuzi. <strong>PENDING / IN_REVIEW</strong> maana yake ofisi bado inafanya review; <strong>APPROVED</strong> maana yake ofisi imeidhinisha; <strong>REJECTED</strong> inahitaji marekebisho yako. <strong>PAUSED / Action Required</strong> huonyesha kwamba kuna ofisi inayohitaji hatua yako. Kila ofisi, ikiwemo Finance, inafanya review kwa mpangilio wowote bila kusubiri nyingine.</p>
-                </details>
-                <details>
-                    <summary>Ofisi ikikataa clearance, natuma marekebisho vipi?</summary>
-                    <div class="help-answer">
-                        <ol>
-                            <li>Fungua <strong>My Clearance</strong>, tafuta ofisi yenye <strong>REJECTED</strong> na soma sababu pamoja na <strong>Corrective instructions</strong>.</li>
-                            <li>Rekebisha kilichoombwa, kisha jaza <strong>Response / explanation</strong>. Unaweza kuambatanisha ushahidi wa PDF, JPG au PNG, hadi faili <strong>5</strong>, kila moja isizidi <strong>5 MB</strong>.</li>
-                            <li>Bonyeza <strong>Submit evidence to office</strong>, kisha subiri officer wa ofisi hiyo ahakiki na aidhinishe marekebisho.</li>
-                        </ol>
-                        <p>Kutuma maelezo au ushahidi hakuidhinishi hatua moja kwa moja. Rekebisha kila ofisi iliyokataa; approvals zilizopo zinahifadhiwa na ofisi nyingine zinaendelea kufanya review. Kutuma marekebisho kunahitaji kipindi cha clearance kiwe wazi.</p>
-                    </div>
-                </details>
-                <details>
-                    <summary>Malipo ya Finance ndani ya clearance ni yale yale ya ada?</summary>
-                    <p>Hatua ya Finance inakagua <strong>madeni mengine</strong>, tofauti na ada ya kuanza clearance. Bila deni jingine, Finance anaweza kuidhinisha kupitia <strong>Approve &mdash; no other debt</strong> bila kuomba receipt nyingine. Deni likiwepo, Finance atatoa control number; lipa kwa namba hiyo, kisha pakia receipt moja ya PDF, JPG au PNG, hadi <strong>5 MB</strong>, kwenye <strong>Finance payment</strong> ndani ya Dashboard au My Clearance kupitia <strong>Upload payment receipt</strong>. Hatua inabaki <strong>PENDING</strong> ikisubiri Finance ahakiki na aidhinishe. Finance hatumii Reject.</p>
-                    <p>Kabla ya approval, receipt ikihitaji kusahihishwa tumia <strong>View or replace payment receipt &rarr; Replace payment receipt</strong>. Finance akibadilisha control number, pakia receipt mpya ya namba mpya. Receipt za zamani zinahifadhiwa kwenye history; kupakia receipt pekee hakukamilishi clearance.</p>
-                </details>
-                <details>
-                    <summary>Clearance Transcript inapatikana lini?</summary>
-                    <p>Clearance inakuwa <strong>COMPLETED</strong> baada ya ofisi zote <strong>11</strong> kuidhinisha na madeni au mahitaji yote kutimizwa. Fungua <strong>Dashboard</strong> na bonyeza <strong>Download Clearance Transcript</strong>. Transcript ina taarifa za mwanafunzi, programme, academic cycle na approvals za kila ofisi; haina marks, grades au GPA. Ikiwa haionekani, angalia ofisi zilizosalia kwenye <strong>My Clearance</strong>.</p>
-                </details>
-                <details>
-                    <summary>Nimesahau nenosiri, nifanye nini?</summary>
-                    <p>Mwanafunzi: fungua <a href="<?= e(url('auth/forgot.php')) ?>">Forgot Password</a>, weka email iliyohifadhiwa kwenye akaunti yako, kisha bonyeza <strong>Send OTP</strong>. Angalia inbox na spam, halafu weka code ya tarakimu sita kwenye <strong>Verify OTP</strong> ndani ya dakika <strong>10</strong>. Endelea kutumia kivinjari kilekile. Una majaribio matano; unaweza kutumia <strong>Resend OTP</strong> baada ya sekunde 60. Code mpya ikitumwa, ya awali haitatumika tena. Baada ya kuthibitisha, andika na urudie nenosiri jipya ndani ya dakika 10, bonyeza <strong>Reset password</strong>, kisha uingie tena.</p>
-                    <p>Kama huwezi kufungua email yako au unatumia akaunti ya mtumishi, wasiliana na msaada. Admin atahakiki utambulisho kabla ya kutoa reset code. Ukipewa code, fungua <a href="<?= e(url('auth/reset.php?manual=1')) ?>">Reset Password</a> na uitumie ndani ya dakika <strong>30</strong>. Code ikiisha muda, wasiliana na Admin kwa nyingine.</p>
-                </details>
-                <details>
-                    <summary>Officer na Admin wanafanya hatua zipi?</summary>
-                    <p>Officer afungue <strong>Review</strong> kwenye ombi alilopangiwa, ahakiki mahitaji ya ofisi yake, kisha achague <strong>Approve</strong> au <strong>Reject</strong> yenye sababu na maelekezo ya marekebisho. Resubmission ihakikiwe kabla ya kutumia <strong>Approve evidence and continue</strong> au <strong>Approve correction and continue</strong>.</p>
-                    <p>Finance ashughulikie ada ya kuanza kupitia <strong>Clearance Fee Payments &rarr; Review payment</strong>: atoe control number kupitia <strong>Send control number</strong>, afungue receipt, athibitishe malipo, kisha achague <strong>Approve payment</strong>. Madeni mengine ashughulikie kwenye Review ya hatua ya Finance. Admin asimamie academic cycle na kufungua au kufunga kipindi kupitia <strong>Clearance Period</strong>, afuatilie maombi kupitia <strong>Clearance Monitoring</strong>, na ahakiki maombi ya nenosiri kwenye <strong>Password Reset Requests</strong>.</p>
-                </details>
-                <details>
-                    <summary>Session ikiisha au nikitaka kutumia akaunti mbili?</summary>
-                    <p>Onyo la session likionekana, bonyeza <strong>Continue session / Endelea</strong> kuendelea. Session inaisha baada ya dakika <strong>30</strong> bila shughuli au saa <strong>8</strong> tangu login; ukomo wa saa 8 unahitaji kuingia tena. Kutumia akaunti mbili kwa wakati mmoja, tumia browser tofauti au dirisha la Incognito / Private kwa akaunti ya pili. Tabs za kawaida kwenye browser moja hutumia login ileile. Ukimaliza, fungua profile ya juu kulia na bonyeza <strong>Log out</strong>.</p>
-                </details>
+    <details>
+        <summary>How do I sign in?</summary>
+        <p>Select <a href="<?= e(url('auth/login.php')) ?>">Login</a>. Students use their full registration number, including the slashes, and their password. Staff use their assigned username and password. You will be directed to the appropriate dashboard. Change your password through the profile menu.</p>
+    </details>
+    <details>
+        <summary>How do I pay the entry fee and start clearance?</summary>
+        <div class="help-answer">
+            <ol>
+                <li>Check that clearance is <strong>OPEN</strong> for the required academic cycle.</li>
+                <li>If you have never started clearance, a <strong>demo control number</strong> is prepared automatically after login. View its amount, generation day, date and time on Dashboard or Clearance Fee.</li>
+                <li>Open <strong>Clearance Fee</strong> and upload one receipt for that control number: PDF, JPG or PNG, up to <strong>5 MB</strong>.</li>
+                <li>Once the receipt is received, <strong>Start Clearance</strong> becomes available. The payment remains <strong>AWAITING REVIEW</strong> until Finance verifies it.</li>
+                <li>Select the open academic cycle and submit the request. All 11 offices start as <strong>PENDING</strong>.</li>
+            </ol>
+            <p>The default fee is <strong>TSh 10,000</strong>; Finance sets the amount for each cycle. Demo references are not connected to a bank or GePG.</p>
+            <p>Each registration number can start <strong>one clearance only</strong>. Continue an existing request through My Clearance. A new cycle does not require another entry fee.</p>
+        </div>
+    </details>
+    <details>
+        <summary>What does CLEARANCE CLOSED mean?</summary>
+        <p>The administrator has not opened the period, or the scheduled period has ended. You can sign in and view your records. New control numbers, receipt uploads, corrections and clearance starts require an open period. Continue an existing request through <strong>My Clearance</strong>.</p>
+    </details>
+    <details>
+        <summary>What do the office statuses mean?</summary>
+        <p><strong>PENDING</strong> means the office has not decided. <strong>IN REVIEW</strong> means it is reviewing the request. <strong>APPROVED</strong> means its requirements are satisfied. <strong>REJECTED</strong> requires student corrections. <strong>PAUSED / Action required</strong> indicates an outstanding correction. Each office reviews independently.</p>
+    </details>
+    <details>
+        <summary>How do I correct a rejected stage?</summary>
+        <ol>
+            <li>Open <strong>My Clearance</strong> and read the office reason and corrective instructions.</li>
+            <li>Complete the correction and describe what you changed.</li>
+            <li>Optionally attach up to five PDF, JPG or PNG files, each up to 5 MB.</li>
+            <li>Select <strong>Submit evidence to office</strong> and wait for that office to review it.</li>
+        </ol>
+        <p>Submitting evidence does not approve the stage automatically. Existing approvals remain in place, and other offices continue independently. The clearance period must be open.</p>
+    </details>
+    <details>
+        <summary>Is a Finance payment request the same as the entry fee?</summary>
+        <p>The Finance stage reviews <strong>other outstanding debts</strong>. The entry fee is separate. If there is no other debt, Finance selects <strong>Approve - no other debt</strong>. If another payment is required, Finance issues a control number. Submit one PDF, JPG or PNG receipt up to 5 MB through the Finance payment form.</p>
+        <p>The stage remains pending until Finance verifies the receipt. You may replace a receipt before approval. A changed control number requires a receipt for the new number; earlier receipts remain in history. Finance does not use Reject.</p>
+    </details>
+    <details>
+        <summary>What does each office need to review?</summary>
+        <p>Dispensary and Head of Department record their clearance decision without a payment amount. Library, Sports, Computer Lab, Supplies, Transport and Hostels check their own property or outstanding liabilities. Student Affairs and Admissions record their decisions. Finance handles payment control numbers and verification.</p>
+    </details>
+    <details>
+        <summary>When can I download my Student Clearance Certificate?</summary>
+        <p>Clearance becomes <strong>COMPLETED</strong> after all <strong>11 offices</strong> approve and the remaining requirements are satisfied. Select <strong>Download Student Clearance Certificate</strong> on Dashboard. The Student Clearance Certificate shows student details, programme, cycle and office approvals; it does not contain grades or GPA.</p>
+    </details>
+    <details>
+        <summary>I forgot my password. What should I do?</summary>
+        <p>Students: open <a href="<?= e(url('auth/forgot.php')) ?>">Forgot Password</a>, enter your registered email and select <strong>Send OTP</strong>. Check your inbox and spam folder. Enter the six-digit code within <strong>10 minutes</strong> in the same browser. Five attempts are allowed; Resend OTP becomes available after 60 seconds and replaces the previous code. After verification, choose and confirm a new password within 10 minutes, then sign in again.</p>
+        <p>If you cannot access your email, or you are a staff member, contact support. An administrator must verify your identity before issuing a reset credential. Use an administrator-issued credential on <a href="<?= e(url('auth/reset.php?manual=1')) ?>">Reset Password</a> within 30 minutes.</p>
+    </details>
+    <details>
+        <summary>What do officers and administrators do?</summary>
+        <p>Officers review assigned office requirements and evidence before approving or requesting corrections. A rejection requires a reason and instructions. Resubmissions must be reviewed before approval.</p>
+        <p>Finance checks entry-fee receipts through <strong>Clearance Fee Payments</strong> and other debts through its clearance stage. Administrators manage accounts, academic cycles, the clearance period, monitoring and account recovery.</p>
+    </details>
+    <details>
+        <summary>What happens when my session expires?</summary>
+        <p>Select <strong>Continue session</strong> when the warning appears. Sessions end after <strong>30 minutes</strong> without activity or <strong>8 hours</strong> after login. The eight-hour limit requires a fresh login. Use different browsers or a private window to use two accounts; ordinary tabs share a login. Select <strong>Log out</strong> from the profile menu when finished.</p>
+    </details>
 </div>

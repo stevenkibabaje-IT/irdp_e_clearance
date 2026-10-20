@@ -24,7 +24,7 @@ if (!$request) {
     exit;
 }
 
-$stages = get_clearance_stages($pdo, (int) $request['id']);
+$stages = student_clearance_stage_display(get_clearance_stages($pdo, (int) $request['id']));
 
 $pageTitle = 'My Clearance';
 require_once __DIR__ . '/../includes/header.php';
@@ -67,7 +67,7 @@ require_once __DIR__ . '/../includes/header.php';
             <span class="stage-number office-status-number" aria-hidden="true"><?= (int) $stage['step_number'] ?></span>
             <div class="stage-main office-status-copy">
                 <strong><?= e($stage['office']) ?></strong>
-                <span class="office-status-badge <?= e(badge_class($stage['status'])) ?>"><?= icon($stage['status'] === 'APPROVED' ? 'check-circle' : ($stage['status'] === 'REJECTED' ? 'alert-circle' : 'clock')) ?> <?= e(humanize_status($stage['status'])) ?></span>
+                <span class="office-status-badge <?= e(badge_class($stage['status'])) ?>"><?= icon($stage['status'] === 'APPROVED' ? 'check-circle' : ($stage['status'] === 'REJECTED' ? 'alert-circle' : 'clock')) ?> <?= e($stage['status']==='LOCKED' ? 'LOCKED' : humanize_status($stage['status'])) ?></span>
             </div>
             <span class="stage-details-cue"><?= icon('chevron-right') ?></span>
             </summary>

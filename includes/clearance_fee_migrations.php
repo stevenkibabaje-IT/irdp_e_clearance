@@ -28,6 +28,12 @@ function migrate_clearance_fees(PDO $db): void
         uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(payment_id) REFERENCES clearance_fee_payments(id), FOREIGN KEY(uploader_id) REFERENCES users(id)
     ) ENGINE=InnoDB');
+    ensure_column($db,'clearance_fee_payments','automatic_control_number','VARCHAR(30) NULL');
+    ensure_column($db,'clearance_fee_payments','control_generated_at','DATETIME NULL');
+    $index=$db->query("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='clearance_fee_payments' AND INDEX_NAME='unique_automatic_entry_control'");
+    if (!(int)$index->fetchColumn()) {
+        $db->exec('ALTER TABLE clearance_fee_payments ADD UNIQUE KEY unique_automatic_entry_control(automatic_control_number)');
+    }
     $db->exec('CREATE TABLE IF NOT EXISTS clearance_fee_actions (
         id INT AUTO_INCREMENT PRIMARY KEY, payment_id INT NOT NULL, actor_id INT NOT NULL,
         action VARCHAR(40) NOT NULL, details_json LONGTEXT NOT NULL,

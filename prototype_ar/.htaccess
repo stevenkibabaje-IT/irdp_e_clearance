@@ -1,0 +1,5 @@
+Require local
+Options -Indexes
+<FilesMatch "\.(sql|json|md|log)$">
+    Require all denied
+</FilesMatch>

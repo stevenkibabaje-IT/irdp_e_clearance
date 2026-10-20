@@ -1,31 +1,26 @@
 <?php
 declare(strict_types=1);
 
-/** Read the published demo credentials without maintaining a second password list. */
+/** Read account tables from the single local README without a second password list. */
 function documented_demo_accounts(): array
 {
     $accounts = [];
     $role = null;
-    foreach (file(__DIR__ . '/../README_DEMO_ACCOUNTS.md', FILE_IGNORE_NEW_LINES) as $line) {
-        if (str_starts_with($line, '## 2.')) { $role = 'STUDENT'; }
-        if (str_starts_with($line, '## 3.')) { $role = 'ADMIN'; }
-        if (str_starts_with($line, '## 4.')) { $role = 'OFFICER'; }
-        if (str_starts_with($line, '## 5.')) { break; }
+    foreach (file(__DIR__ . '/../README.md', FILE_IGNORE_NEW_LINES) as $line) {
+        if (preg_match('/^### (ADMIN|OFFICER|SUPERVISOR|STUDENT)\b/',$line,$match)) { $role=$match[1];continue; }
+        if ($role!==null && str_starts_with($line,'## ')) { break; }
         if (!str_starts_with($line, '|') || $role === null) { continue; }
         $cells = array_map('trim', explode('|', trim($line, '|')));
-        $username = $cells[$role === 'ADMIN' ? 0 : 1] ?? '';
-        if (!preg_match('~^(?:IRDP/[A-Z]+/MA[0-9]{2}/[0-9]{4}|admin|[A-Z]+001)$~D', $username)) { continue; }
+        $username = $cells[1] ?? '';
+        if (count($cells)!==6 || ($cells[5]??'')!=='ACTIVE' || $username==='Username') { continue; }
         if (isset($accounts[$username])) { throw new RuntimeException('Duplicate documented account: ' . $username); }
-        $password = $cells[$role === 'ADMIN' ? 1 : 2] ?? '';
-        if ($password === '') { throw new RuntimeException('Missing documented password or explicit unavailable marker: ' . $username); }
         $accounts[$username] = [
             'username' => $username, 'role' => $role,
-            'password' => $password === '—' ? null : $password,
+            'password' => $cells[2],
             'full_name' => $cells[0], 'programme' => $cells[3] ?? null,
-            'email' => $role === 'STUDENT' ? ($cells[4] ?? '') : '',
-            'academic_year' => str_contains($username, '/MA26/') ? '2026/2027' : '2025/2026',
+            'department' => $cells[4],
         ];
     }
-    if (count($accounts) !== 34) { throw new RuntimeException('Expected 34 documented demo accounts.'); }
+    if (!$accounts) { throw new RuntimeException('No account tables found in README.md.'); }
     return $accounts;
 }

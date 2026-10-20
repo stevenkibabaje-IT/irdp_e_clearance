@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const {spawn} = require('node:child_process');
+const {spawn, spawnSync} = require('node:child_process');
 const {once} = require('node:events');
 
 const [origin, fixturePath] = process.argv.slice(2);
@@ -196,7 +196,7 @@ async function studentShellChecks() {
     assert(await evaluate(`![...document.querySelectorAll('.sidebar-nav a')].some(a=>/profile|change_password/.test(a.href))`), 'Student account links must stay in the top-right profile.');
     await evaluate(`window.shellReference=document.querySelector('.app-shell');document.querySelector('.account-menu summary').click();document.querySelector('.account-dropdown a[href$="student/profile.php"]').click()`);
     await waitFor('location.pathname==="/student/profile.php" && !document.querySelector(".app-shell.is-loading")', 'Profile menu');
-    assert.match(await evaluate('document.getElementById("supportContext").innerText'), /Kusimamia profile/, 'Help context did not follow application navigation.');
+    assert.match(await evaluate('document.getElementById("supportContext").innerText'), /Manage your profile/, 'Help context did not follow application navigation.');
     await evaluate('document.getElementById("phone").value="0712 345 678";document.getElementById("phone").dispatchEvent(new Event("input",{bubbles:true}));document.querySelector(".profile-phone-form").requestSubmit()');
     await waitFor('!document.querySelector(".app-shell.is-loading") && document.querySelector("#main-content").textContent.includes("Phone number saved.")','Profile phone save');
     assert.equal(await evaluate('document.getElementById("phone").value'),'+255712345678','Saved profile phone was not refreshed.');
@@ -256,6 +256,71 @@ async function officerSummaryChecks() {
     await navigate('/officer/review.php?stage='+fixture.review_stage);
     console.log('PASS: staff name across pages, scoped workload counts, summary icons and returned/all task filters');
 }
+async function dashboardChecks() {
+    await login(fixture.admin); await shellChecks();
+    await login(fixture.student); await studentShellChecks();
+    await login(fixture.officer); await officerSummaryChecks();
+    const cases = [
+        ['admin', fixture.admin, '/admin/dashboard.php'],
+        ['student-corrections', fixture.student, '/student/dashboard.php'],
+        ['student-before-clearance', fixture.new_student, '/student/dashboard.php'],
+        ['officer', fixture.officer, '/officer/dashboard.php'],
+        ['student-finance', fixture.finance_student, '/student/dashboard.php'],
+        ['finance-officer', fixture.finance_officer, '/officer/dashboard.php'],
+        ['student-completed', fixture.completed, '/student/dashboard.php'],
+    ];
+    for (const [name, account, route] of cases) {
+        await login(account);
+        await navigate(route);
+        layoutRoute = route;
+        if (account === fixture.new_student) {
+            assert(await evaluate('!!document.querySelector("a[href$=\\"student/clearance_fee.php\\"]")'), 'Entry-fee action is missing before clearance.');
+        }
+        if (account === fixture.completed) {
+            assert(await evaluate('!!document.querySelector(".student-transcript-link[href$=\\"transcripts/download.php\\"]")'), 'Completed student lost the certificate download.');
+        }
+        if (account === fixture.finance_officer || account === fixture.officer) {
+            assert.equal(await evaluate('!!document.querySelector(".officer-fee-summary")'), account === fixture.finance_officer, 'Finance actions escaped their assigned role.');
+        }
+        if (account === fixture.finance_student) {
+            await evaluate('document.querySelector(".office-status-details summary").click()');
+            assert(await evaluate('!!document.querySelector(".office-status-details[open] input[type=file]")'), 'Finance receipt upload is missing.');
+            await checkLayout(route, 320, 2);
+            await evaluate('document.querySelector(".office-status-details").open=false');
+        }
+        for (const width of [320,390,768,1024,1280,1440,1920]) {
+            await checkLayout(route, width, 1);
+            await checkLayout(route, width, 2);
+        }
+        await checkLayout(route,1440,1); await screenshot('dashboard-'+name+'-desktop');
+        if (account === fixture.admin) {
+            for (const [selector,label] of [['.sidebar-nav a:not(.active)','navigation'],['.dash-hero .btn','primary action']]) {
+                const before=await evaluate(`(() => {const el=document.querySelector(${JSON.stringify(selector)}),r=el.getBoundingClientRect();return {color:getComputedStyle(el).backgroundColor,x:r.left+r.width/2,y:r.top+r.height/2};})()`);
+                await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:before.x,y:before.y});
+                await pause(250);
+                const after=await evaluate(`getComputedStyle(document.querySelector(${JSON.stringify(selector)})).backgroundColor`);
+                assert.notEqual(after,before.color,label+' needs a visible hover state.');
+            }
+            await screenshot('dashboard-admin-hover');
+            await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:0,y:0});
+        }
+        await checkLayout(route,390,1); await screenshot('dashboard-'+name+'-mobile');
+        if (account === fixture.admin) {
+            await evaluate('document.getElementById("navigationToggle").click()');
+            await pause(250);
+            assert(await evaluate('document.getElementById("sidebar").classList.contains("open")'),'Mobile navigation did not open.');
+            await screenshot('dashboard-sidebar-mobile');
+            await evaluate('document.getElementById("navigationClose").click()');
+        }
+        await evaluate('document.documentElement.classList.add("high-contrast")');
+        await checkLayout(route,390,2);
+        await evaluate('document.documentElement.classList.remove("high-contrast")');
+        console.log('PASS: '+name+' dashboard, mobile/desktop, 200% text and retained role actions');
+    }
+    assert.equal(scriptErrors.length,0,'Dashboard JavaScript errors: '+scriptErrors.join('; '));
+    console.log('PASS: '+checks+' dashboard browser layouts and '+tableChecks+' keyboard-accessible scrollable tables');
+}
+
 async function landingChecks() {
     await navigate('/');
     await viewport(1440);
@@ -264,7 +329,7 @@ async function landingChecks() {
     await screenshot('home-mobile');
     await evaluate('document.getElementById("supportToggle").click()');
     assert(await evaluate('!document.getElementById("supportPanel").hidden && document.getElementById("supportToggle").getAttribute("aria-expanded")==="true"'), 'Help did not open.');
-    assert.match(await evaluate('document.getElementById("supportContext").innerText'), /Karibu kwenye e-Clearance/);
+    assert.match(await evaluate('document.getElementById("supportContext").innerText'), /Welcome to e-Clearance/);
     await key('Escape');
     assert(await evaluate('document.getElementById("supportPanel").hidden && document.activeElement.id==="supportToggle"'), 'Escape did not close help and restore focus.');
     await evaluate('document.getElementById("supportToggle").click();document.getElementById("helpTabFaq").click();document.getElementById("helpSearch").value="receipt";document.getElementById("helpSearch").dispatchEvent(new Event("input"))');
@@ -297,7 +362,7 @@ async function landingChecks() {
     await evaluate('document.getElementById("supportClose").click()');
     await navigate('/auth/login.php');
     await evaluate('document.getElementById("username").value="Unsaved username";document.getElementById("supportToggle").click()');
-    assert.match(await evaluate('document.getElementById("supportContext").innerText'), /Kuingia kwenye mfumo/);
+    assert.match(await evaluate('document.getElementById("supportContext").innerText'), /Sign in/);
     await evaluate('document.getElementById("supportClose").click()');
     assert.equal(await evaluate('document.getElementById("username").value'), 'Unsaved username', 'Help discarded form input.');
     console.log('PASS: shared help, contextual guide, FAQ search/no results, original contacts, keyboard/focus, unsaved input, 320–2560px / 200% text and landscape');
@@ -458,6 +523,7 @@ async function sessionWarningChecks() {
         });
         await new Promise((resolve, reject) => {ws.addEventListener('open', resolve, {once: true}); ws.addEventListener('error', reject, {once: true});});
         await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable');
+        if (process.env.IRDP_DASHBOARDS_ONLY === '1') { await dashboardChecks(); return; }
         if (process.env.IRDP_SESSION_ONLY !== '1') {
             if (process.env.IRDP_STUDENT_ONLY !== '1') {
                 await landingChecks();
@@ -506,6 +572,14 @@ async function sessionWarningChecks() {
                 for (const width of widths) await checkLayout(route, width, 1);
                 for (const width of [320, 768, 1280, 1920]) await checkLayout(route, width, 2);
                 await checkLayout(route, 844, 1, 390);
+                if (['/admin/clearance_period.php','/admin/users.php','/student/clearance_fee.php','/student/status.php','/auth/login.php'].includes(route)) {
+                    const name=route.replace(/\.php$/,'').replaceAll('/','-');
+                    await checkLayout(route,1440,1); await screenshot('interface'+name+'-desktop');
+                    await checkLayout(route,390,1); await screenshot('interface'+name+'-mobile');
+                    await evaluate('document.documentElement.classList.add("high-contrast")');
+                    await checkLayout(route,390,2);
+                    await evaluate('document.documentElement.classList.remove("high-contrast")');
+                }
             }
             console.log('PASS: '+(group.account?.username || 'Public')+' responsive layouts');
             if (group.account === fixture.admin) await navigationChecks();
@@ -525,7 +599,19 @@ async function sessionWarningChecks() {
         // This recursively removes only the unique browser profile created above.
         const resolved = path.resolve(profile);
         if (path.dirname(resolved) === path.resolve(os.tmpdir()) && path.basename(resolved).startsWith('irdp-responsive-browser-')) {
-            fs.rmSync(resolved, {recursive:true, force:true, maxRetries:5, retryDelay:200});
+            if (process.platform === 'win32') {
+                // Native cleanup handles Windows attributes left by Chromium profiles.
+                const cleanup = spawnSync('powershell.exe', ['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command', `
+                    $ErrorActionPreference = 'Stop'
+                    $profileTarget = [IO.Path]::GetFullPath($env:IRDP_BROWSER_CLEANUP_TARGET)
+                    $profileRoot = [IO.Path]::GetFullPath($env:IRDP_BROWSER_CLEANUP_ROOT).TrimEnd('\\')
+                    if ((Split-Path -Parent $profileTarget) -ne $profileRoot -or (Split-Path -Leaf $profileTarget) -notmatch '^irdp-responsive-browser-[A-Za-z0-9]{6}$') { throw 'Unexpected browser cleanup path.' }
+                    if (Test-Path -LiteralPath $profileTarget) { Remove-Item -LiteralPath $profileTarget -Recurse -Force }
+                `], {windowsHide:true, encoding:'utf8', timeout:30000, env:{...process.env,IRDP_BROWSER_CLEANUP_TARGET:resolved,IRDP_BROWSER_CLEANUP_ROOT:path.resolve(os.tmpdir())}});
+                if (cleanup.status !== 0) throw new Error('Temporary browser profile cleanup failed: '+(cleanup.stderr || cleanup.error || 'unknown error'));
+            } else {
+                fs.rmSync(resolved, {recursive:true, force:true, maxRetries:5, retryDelay:200});
+            }
         }
     }
 })();

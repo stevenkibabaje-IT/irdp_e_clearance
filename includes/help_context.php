@@ -1,142 +1,144 @@
 <?php
 declare(strict_types=1);
 
-/** Short guidance follows the rendered route; no student data is exposed here. */
+/** Contextual English guidance for the current route. */
 function page_help_context(): array
 {
-    $path = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/index.php');
-    $role = current_user()['role'] ?? '';
-    $route = basename(dirname($path)) . '/' . basename($path);
-    $guides = [
-        'auth/login.php' => ['Kuingia kwenye mfumo', [
-            'Mwanafunzi: andika namba yote ya usajili, pamoja na alama za /. Mtumishi: tumia username uliyopewa.',
-            'Weka nenosiri lako, kisha bonyeza Login. Icon ya jicho kwenye nenosiri hukusaidia kuona ulichoandika.',
-            'Umesahau nenosiri? Tumia Forgot Password kutuma ombi la kurejesha akaunti.',
+    $path=str_replace('\\','/',$_SERVER['SCRIPT_NAME']??'/index.php');
+    $role=current_user()['role']??'';
+    $route=basename(dirname($path)).'/'.basename($path);
+    $guides=[
+        'auth/login.php'=>['Sign in',[
+            'Students: enter the complete registration number, including slashes. Staff: use your assigned username.',
+            'Enter your password and select Login. Use the eye button to check what you typed.',
+            'Select Forgot Password if you need account recovery.',
         ]],
-        'auth/forgot.php' => ['Kurejesha akaunti', [
-            'Mwanafunzi: weka email iliyohifadhiwa kwenye akaunti yako, kisha bonyeza Send OTP.',
-            'Angalia inbox na spam. Weka OTP ya tarakimu sita kwenye kivinjari hiki ndani ya dakika 10.',
-            'Kama huwezi kufungua email yako au unatumia akaunti ya mtumishi, wasiliana na msaada kwa uhakiki wa utambulisho na urejeshaji kupitia Admin.',
+        'auth/forgot.php'=>['Recover your account',[
+            'Students: enter the email address saved on your account, then select Send OTP.',
+            'Check your inbox and spam folder. Enter the six-digit code in this browser within 10 minutes.',
+            'If you cannot access your email, or you are a staff member, contact support for identity verification and administrator-assisted recovery.',
         ]],
-        'auth/verify_otp.php' => ['Kuthibitisha email', [
-            'Weka OTP ya tarakimu sita uliyopokea kwenye email, kisha bonyeza Verify OTP.',
-            'Code ina muda wa dakika 10 na majaribio matano. Tumia kivinjari kilekile ulichoomba OTP.',
-            'Subiri sekunde 60 kabla ya Resend OTP. Code mpya ikitumwa, code ya awali haitatumika tena.',
+        'auth/verify_otp.php'=>['Verify your email',[
+            'Enter the six-digit code received by email and select Verify OTP.',
+            'The code expires in 10 minutes and allows five attempts. Stay in the browser where you requested it.',
+            'Wait 60 seconds before selecting Resend OTP. A new code replaces the previous one.',
         ]],
-        'auth/reset.php' => ['Kuweka nenosiri jipya', [
-            'Baada ya Verify OTP, andika na urudie nenosiri jipya ndani ya dakika 10, kisha bonyeza Reset password.',
-            'Ukipewa reset code na Admin baada ya uhakiki wa utambulisho, tumia link ya Reset Password uliyopewa. Code hiyo ina muda wa dakika 30.',
-            'Baada ya kuhifadhi, ingia tena kwa nenosiri jipya. Code ikiisha muda, omba nyingine au wasiliana na msaada.',
+        'auth/reset.php'=>['Set a new password',[
+            'After verifying your OTP, enter and confirm your new password within 10 minutes, then select Reset password.',
+            'An administrator-issued reset credential expires after 30 minutes. Use the Reset Password link provided.',
+            'Sign in with your new password after saving. Request a new code if the previous one has expired.',
         ]],
-        'auth/change_password.php' => ['Kubadilisha nenosiri', [
-            'Weka nenosiri lako la sasa, kisha andika na urudie nenosiri jipya.',
-            'Tumia maneno au herufi ambazo si rahisi kukisiwa; fuata kiwango kinachoonyeshwa kwenye form.',
-            'Ukihifadhi, utaingia tena kwa nenosiri jipya. Change Password na Log out zinapatikana kwenye profile ya juu kulia.',
+        'auth/change_password.php'=>['Change your password',[
+            'Enter your current password, then enter and confirm a new password.',
+            'Follow the length requirements shown on the form and avoid easily guessed passwords.',
+            'After saving, sign in again. Change Password and Log out are available in the profile menu.',
         ]],
-        'student/dashboard.php' => ['Dashboard yako', [
-            'Angalia kama clearance iko OPEN na academic cycle inayohusika.',
-            'Kama hujaanza, fungua Clearance Fee. Ikiwa tayari umeanza, tumia Continue Clearance au My Clearance.',
-            'Progress circle na Office Status ziko kwenye panel moja. Fungua Correction / Upload Evidence pale ofisi inapoomba hatua.',
-            'Picha, My Profile, Change Password na Log out vinapatikana kwenye profile ya juu kulia. Taarifa za maamuzi ziko kwenye kengele.',
+        'student/dashboard.php'=>['Your dashboard',[
+            'Check the clearance period and academic cycle.',
+            'If you have not started, your demo control number appears automatically while clearance is open. Open Clearance Fee to submit its receipt.',
+            'A received entry-fee receipt unlocks Start Clearance. Existing requests continue through My Clearance.',
+            'View office decisions and progress here. Your profile and notifications are available at the top of the page.',
         ]],
-        'student/clearance_fee.php' => ['Kulipa ada ya kuanza clearance', [
-            'Bonyeza Request control number, kisha subiri Finance akupe namba na kiasi cha kulipa.',
-            'Lipa kwa control number hiyo. Pakia receipt moja ya PDF, JPG au PNG isiyozidi 5 MB.',
-            'Subiri malipo yawe APPROVED. Kupakia receipt pekee hakufungui Start Clearance.',
-            'Clearance ikiwa OPEN na ada imeidhinishwa, endelea kwenye Start Clearance.',
+        'student/clearance_fee.php'=>['Clearance entry fee',[
+            'Your demo control number is prepared after login while clearance is open. Its generation day, date and time appear here and on your dashboard.',
+            'Upload one PDF, JPG or PNG receipt, up to 5 MB, for the displayed control number.',
+            'A received receipt unlocks Start Clearance. Finance verifies payment separately.',
+            'The entry-fee number and receipt cannot be changed after clearance has started.',
         ]],
-        'student/start.php' => ['Kuanza clearance', [
-            'Hakikisha kipindi cha clearance kiko OPEN na ada ya kuanza imeidhinishwa na Finance.',
-            'Chagua academic cycle iliyofunguliwa, hakiki taarifa, kisha tuma ombi mara moja.',
-            'Namba moja ya usajili inaanzisha clearance moja tu. Academic cycle mpya haifungui ombi la pili; endelea kupitia My Clearance.',
-            'Baada ya kutuma, ofisi zote 11 zinaweza kufanya review kwa kujitegemea. Fuatilia kupitia My Clearance.',
+        'student/start.php'=>['Start clearance',[
+            'The clearance period must be open and your entry-fee receipt must have been received.',
+            'Select the open academic cycle, check your details and submit once.',
+            'Each registration number can start only one clearance. Continue an existing request through My Clearance.',
+            'All 11 offices review independently after submission.',
         ]],
-        'student/status.php' => ['Kuelewa hali ya ofisi', [
-            'Chagua ofisi kwenye Office Reviews kufungua maelezo, historia, malipo au sehemu ya kupakia ushahidi.',
-            'Pending: ofisi inasubiri review. In review: ombi linakaguliwa. Approved: ofisi imeidhinisha.',
-            'Rejected / Action required: soma sababu na maelekezo ya ofisi, rekebisha kisha tuma maelezo au ushahidi.',
-            'Finance ikitoa control number ya deni, lipa na pakia receipt kwa namba hiyo. Kupakia receipt hakumaanishi approval.',
-            'Ofisi zote 11 zikiidhinisha, transcript itapatikana kupitia Dashboard.',
+        'student/status.php'=>['Office review status',[
+            'Select an office to view its decision, history, payment details or evidence submission.',
+            'Pending means the office has not decided. In review means it is reviewing the request. Approved means its requirements are satisfied.',
+            'For Rejected or Action required, read the instructions, complete the correction and submit your explanation or evidence.',
+            'For a Finance payment request, use the current control number and submit its receipt for verification.',
+            'Your Student Clearance Certificate becomes available after all 11 offices approve.',
         ]],
-        'student/resubmit.php' => ['Kutuma marekebisho', [
-            'Soma sababu ya kukataliwa na Corrective instructions za ofisi hii.',
-            'Eleza ulichorekebisha. Unaweza kuongeza hadi faili 5 za PDF, JPG au PNG, kila moja isizidi 5 MB.',
-            'Bonyeza Submit evidence to office. Subiri officer ahakiki; approvals za ofisi nyingine zinahifadhiwa.',
-            'Kwa malipo ya Finance, tumia control number na receipt inayohusiana nayo.',
+        'student/resubmit.php'=>['Submit corrections',[
+            'Read the office rejection reason and corrective instructions.',
+            'Describe the correction. You may attach up to five PDF, JPG or PNG files, each up to 5 MB.',
+            'Select Submit evidence to office and wait for its review. Approvals from other offices remain unchanged.',
+            'Finance receipts must match the current control number.',
         ]],
-        'student/profile.php' => ['Kusimamia profile', [
-            'Hapa unaweza kuona taarifa zako, kubadilisha picha, kuweka email ya notifications na kuhifadhi namba yako ya simu.',
-            'Kwenye Phone number, andika namba kama 0712345678 au +255712345678 kisha bonyeza Save phone.',
-            'Mabadiliko ya email yanahitaji nenosiri lako la sasa. Picha iwe JPG au PNG, hadi 5 MB.',
-            'Chagua picha uone preview, kisha bonyeza Save picture. Preview pekee haihifadhi picha.',
-            'Kubadilisha nenosiri au kutoka, fungua profile ya juu kulia.',
+        'student/profile.php'=>['Manage your profile',[
+            'View your details, update your photo, set your notification email and save your phone number.',
+            'Enter a phone number such as 0712345678 or +255712345678 and select Save phone.',
+            'Changing your email requires your current password. Profile photos must be JPG or PNG, up to 5 MB.',
+            'Select Save picture to store a previewed image. Use the profile menu to change your password or log out.',
         ]],
-        'student/notifications.php' => ['Taarifa za akaunti', [
-            'Soma maamuzi na taarifa zinazohusu akaunti yako. Kengele ya juu inaonyesha taarifa ambazo hujasoma.',
-            'Tumia Mark all as read baada ya kuzisoma. Kwa marekebisho au malipo, fungua My Clearance au kazi husika.',
+        'student/notifications.php'=>['Your notifications',[
+            'Read decisions and updates for your account. The notification bell shows unread messages.',
+            'Select Mark all as read when finished. Open My Clearance for corrections or payment actions.',
         ]],
-        'officer/dashboard.php' => ['Kazi za ofisi yako', [
-            'Summary inaonyesha kazi zinazosubiri review, ushahidi uliorudishwa, approvals za leo na marekebisho yanayosubiri mwanafunzi.',
-            'Bonyeza Pending reviews au Evidence returned kuchuja kazi ulizopangiwa, kisha bonyeza Review.',
-            'Hakiki mahitaji ya ofisi yako na ushahidi wa mwanafunzi kabla ya kufanya uamuzi.',
-            'Kila ofisi hufanya review kwa kujitegemea. Maombi yaliyotumwa upya yanahitaji ukaguzi wa ushahidi mpya.',
+        'officer/dashboard.php'=>['Your office tasks',[
+            'The summary shows pending reviews, returned evidence, approvals and outstanding student corrections.',
+            'Filter by Pending reviews or Evidence returned, then select Review.',
+            'Check your office requirements and the submitted evidence before deciding.',
+            'Each office reviews independently. Resubmitted corrections require a new review.',
         ]],
-        'officer/review.php' => ['Kuhakiki clearance', [
-            'Hakiki taarifa za mwanafunzi, mahitaji ya ofisi na ushahidi uliowasilishwa.',
-            'Approve baada ya kuthibitisha mahitaji. Reject inahitaji sababu na maelekezo ya marekebisho.',
-            'Finance: kama hakuna deni lingine tumia Approve — no other debt; deni likiwepo toa control number na uhakiki receipt. Finance haitumii Reject.',
+        'officer/review.php'=>['Review clearance',[
+            'Check the student details, your office requirements and the submitted evidence.',
+            'Approve only when the requirements are satisfied. Rejection requires a reason and corrective instructions.',
+            'Dispensary and Head of Department use a clearance decision without a payment amount.',
+            'Finance: select Approve - no other debt if applicable, or issue a control number and verify its receipt. Finance does not use Reject.',
         ]],
-        'officer/clearance_fees.php' => ['Ada za kuanza clearance', [
-            'Weka kiwango cha ada cha cycle husika, kisha fungua Review payment kwenye ombi.',
-            'Toa control number, subiri receipt na hakiki malipo kabla ya kuidhinisha.',
-            'Approval ya ada inamruhusu mwanafunzi kuanza clearance wakati kipindi kiko OPEN.',
+        'officer/clearance_fees.php'=>['Clearance entry fees',[
+            'Set the amount for the selected cycle, then open Review payment.',
+            'The system prepares demo control numbers automatically. Check receipts and verify payment before approving.',
+            'Students can start clearance after submitting a receipt while the period is open.',
         ]],
-        'officer/clearance_fee_review.php' => ['Kuhakiki malipo ya ada', [
-            'Toa au hakiki control number ya ombi hili. Kuibadilisha kunahitaji receipt mpya.',
-            'Fungua receipt na thibitisha kiasi pamoja na control number kabla ya kuchagua Approve payment.',
-            'Receipt za awali zinahifadhiwa kwenye history.',
+        'officer/clearance_fee_review.php'=>['Verify an entry-fee receipt',[
+            'Check the current control number and receipt. Changing the number before clearance starts requires a new receipt.',
+            'Open the receipt and verify the amount and control number before selecting Approve payment.',
+            'Earlier receipts remain in payment history. Payment details are locked after clearance starts.',
         ]],
-        'admin/clearance_period.php' => ['Kusimamia kipindi cha clearance', [
-            'Chagua academic cycle iliyopo au tengeneza cycle mpya kwa muundo unaoonyeshwa.',
-            'Chagua kufungua, kufunga au kupanga muda. Kwa ratiba, muda wa kufunga ufuate muda wa kufungua.',
-            'Hakiki maamuzi kabla ya kuhifadhi; kipindi hiki kinaamua upatikanaji wa huduma za clearance kwa wanafunzi.',
+        'admin/clearance_period.php'=>['Manage the clearance period',[
+            'Select an existing academic cycle or create one in the required format.',
+            'Open or close clearance, or set an opening and closing schedule.',
+            'Check your settings before saving; they control availability of student clearance actions.',
         ]],
-        'admin/users.php' => ['Kusimamia akaunti', [
-            'Chagua role sahihi, kisha jaza taarifa na nenosiri la awali.',
-            'Mwanafunzi anahitaji department, programme na academic cycle. Programme ilingane na namba yake ya usajili.',
-            'Officer anahitaji office; Head of Department anahitaji department husika pia.',
+        'admin/users.php'=>['Manage accounts',[
+            'Select the correct role and enter the account details and initial password.',
+            'Students require a department, programme and academic cycle matching their registration number.',
+            'Officers require an office assignment. Departmental reviewers also require the matching department.',
         ]],
-        'admin/departments.php' => ['Kusimamia departments', [
-            'Tumia code na jina rasmi la department. Code iwe na herufi kubwa kulingana na form.',
-            'Orodha inaonyesha departments, idadi ya wanafunzi na hali yake.',
-            'Departmental reviewer lazima awe na department inayolingana na ya wanafunzi anaowahudumia.',
+        'admin/departments.php'=>['Manage departments',[
+            'Enter the official department code and name. Use the uppercase format shown on the form.',
+            'The list shows department status and student counts.',
+            'A departmental reviewer must belong to the same department as the students being reviewed.',
         ]],
-        'admin/recovery.php' => ['Maombi ya kurejesha nenosiri', [
-            'Chagua ombi, hakiki utambulisho wa mwenye akaunti na uweke kumbukumbu inayohitajika.',
-            'Approve huruhusu mwenye akaunti kuweka nenosiri jipya; Reject inahitaji sababu.',
-            'Credential ina muda maalumu. Usitume nenosiri la mtumiaji kupitia mawasiliano yasiyothibitishwa.',
+        'admin/recovery.php'=>['Password recovery requests',[
+            'Select a request, verify the account owner and record the verification details.',
+            'Approval allows the account owner to choose a new password. Rejection requires a reason.',
+            'Reset credentials expire. Do not share account passwords through unverified channels.',
         ]],
-        'admin/reports.php' => ['Kutengeneza ripoti', [
-            'Chagua aina ya ripoti na kipindi unachohitaji.',
-            'Kwa custom dates, weka tarehe ya kuanzia na ya mwisho; tarehe ya mwisho isiwe kabla ya ya kuanzia.',
-            'Bonyeza kitufe cha kutengeneza ripoti ili kufungua PDF.',
+        'admin/reports.php'=>['Generate reports',[
+            'Choose one of the 14 reports and select View report.',
+            'Use optional dates, academic year, programme, student department, office and request status filters. Access Period reports support dates only.',
+            'Read the report note for date and calculation definitions. Download CSV or PDF to export all matching rows.',
         ]],
-        'admin/import.php' => ['Kuingiza wanafunzi kwa faili', [
-            'Pakua template ya CSV au XLSX, kisha jaza codes za programme na department zilizopo.',
-            'Pakia faili lisilozidi 5 MB uone preview. Soma makosa na hakiki taarifa kabla ya kuingiza rows sahihi.',
-            'Akaunti zilizoingizwa zinahitaji hatua ya activation iliyoelezwa kwenye ukurasa.',
+        'admin/import.php'=>['Import students',[
+            'Download the CSV or XLSX template and use existing programme and department codes.',
+            'Upload a file up to 5 MB, review the preview and correct errors before confirming valid rows.',
+            'Imported accounts follow the activation steps shown on the page.',
         ]],
     ];
-    if (isset($guides[$route])) { return $guides[$route]; }
-    if ($role === 'ADMIN') {
-        return ['Kusimamia mfumo', ['Chagua huduma unayohitaji kwenye menu ya kushoto; kwenye simu, fungua menu ya juu.',
-            'Dashboard ina muhtasari. Clearance Monitoring ina maombi, na Clearance Period inadhibiti cycle iliyofunguliwa.',
-            'Profile ya juu kulia ina Change Password na Log out. Kengele ina taarifa za akaunti.']];
-    }
-    if (in_array($role, ['OFFICER', 'SUPERVISOR'], true)) { return $guides['officer/dashboard.php']; }
-    if ($role === 'STUDENT') { return $guides['student/dashboard.php']; }
-    return ['Karibu kwenye e-Clearance', ['Bonyeza Login / Ingia kuingia kwenye akaunti yako.',
-        'Mwanafunzi atumie namba yote ya usajili na nenosiri; mtumishi atumie username aliyopewa.',
-        'Baada ya kuingia, fuata ada ya kuanza clearance, review za ofisi na upatikanaji wa transcript.',
-        'Ukiwa hujaelewa hatua, soma maswali ya kawaida au piga simu kupitia Mawasiliano.']];
+    if(isset($guides[$route])){return $guides[$route];}
+    if($role==='ADMIN'){return ['Manage the system',[
+        'Use the navigation menu to open the required service. On small screens, open the menu button.',
+        'Use Clearance Monitoring for requests and Clearance Period to control the open cycle.',
+        'Change Password and Log out are available in the profile menu; the bell opens notifications.',
+    ]];}
+    if(in_array($role,['OFFICER','SUPERVISOR'],true)){return $guides['officer/dashboard.php'];}
+    if($role==='STUDENT'){return $guides['student/dashboard.php'];}
+    return ['Welcome to e-Clearance',[
+        'Select Login to sign in to your account.',
+        'Students use their full registration number. Staff use their assigned username.',
+        'Follow the entry-fee, office review and certificate steps after signing in.',
+        'Read the frequently asked questions or contact support if you need assistance.',
+    ]];
 }

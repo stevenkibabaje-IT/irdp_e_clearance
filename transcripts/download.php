@@ -10,7 +10,7 @@ $studentId = current_user()['role'] === 'STUDENT'
     : request_record_id($_GET['student'] ?? null, 'student');
 if (!transcript_available($pdo, $studentId)) {
     http_response_code(409);
-    exit('Complete the required clearance process to access your transcript.');
+    exit('Complete the required clearance process to access your Student Clearance Certificate.');
 }
 try {
     $doc = ensure_transcript($pdo, $studentId, (int)current_user()['id']);
@@ -20,14 +20,14 @@ try {
 }
 if ($doc['status'] !== 'VALID') {
     http_response_code(409);
-    exit('This transcript has been revoked. Contact the administrator.');
+    exit('This Student Clearance Certificate has been revoked. Contact the administrator.');
 }
 if (!hash_equals($doc['snapshot_sha256'], hash('sha256', $doc['snapshot_json']))) {
     http_response_code(409);
-    exit('Transcript snapshot could not be verified. Contact the administrator.');
+    exit('Student Clearance Certificate snapshot could not be verified. Contact the administrator.');
 }
 $doc['snapshot'] = json_decode($doc['snapshot_json'], true, 512, JSON_THROW_ON_ERROR);
 $doc['student_id'] = $studentId;
 $doc['verification_url'] = rtrim(APPLICATION_ORIGIN, '/') . '/transcripts/verify.php?token=' . $doc['verification_token'];
 academic_audit($pdo, 'TRANSCRIPT_DOWNLOADED', (int)current_user()['id'], (int)$doc['student_id'], (int)$doc['id'], null, ['document' => $doc['document_number']], '', (int)$doc['clearance_request_id']);
-pdf_transcript($doc, 'IRDP-Clearance-Transcript-' . str_replace('/', '-', $doc['document_number']) . '.pdf');
+pdf_transcript($doc, 'IRDP-Student-Clearance-Certificate-' . str_replace('/', '-', $doc['document_number']) . '.pdf');

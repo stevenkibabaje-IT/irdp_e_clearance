@@ -1,185 +1,198 @@
-# IRDP Student Clearance System
+# IRDP e-Clearance — System Guide and Accounts
 
-A local PHP/MySQL/XAMPP implementation of the IRDP student clearance workflow.
+This is the single main README for this installation. It covers setup, student clearance, office responsibilities, email delivery and all current accounts. Account credentials are private: this file is blocked through Apache and excluded from Git.
 
-The current schema has **30 tables**, including the student email OTP recovery table. Nine unused legacy-feature tables were
-removed on 13 October 2026; existing features and all 33 accounts were preserved.
-See [cleanup and verification details](docs/NINE_TABLE_CLEANUP.md).
+## Contents
 
-Contributions are welcome through forks and pull requests at [stevenkibabaje-IT/irdp_e_clearance](https://github.com/stevenkibabaje-IT/irdp_e_clearance). See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks and submission instructions.
+- [Start the system and sign in](#start-the-system-and-sign-in)
+- [Entry fee and clearance](#entry-fee-and-clearance)
+- [Office responsibilities](#office-responsibilities)
+- [Administrator tasks](#administrator-tasks)
+- [Email and account recovery](#email-and-account-recovery)
+- [All user accounts](#all-user-accounts)
+- [Checks and troubleshooting](#checks-and-troubleshooting)
 
-The theme uses IRDP green `#60BA6D`, dark-green accents `#075D39`, deep-green headings `#06452C`, a light background and white surfaces. Roboto is hosted locally under `assets/fonts`, with its included SIL Open Font License. Login, landing page and shared dashboards use the same green theme; light-green buttons use dark text for contrast.
+## Start the system and sign in
 
-The web logo is the official PNG from [IRDP's Online Application System](https://oas.irdp.ac.tz/images/logo-sm.png), stored locally as `assets/img/irdp-logo-web.png`. Landing, login and dashboard navigation show the full emblem on a white surface without cropping the motto. The login card also shows the logo on phones. The original JPEG is retained for PDF documents.
+1. Start **Apache** and **MySQL** in XAMPP.
+2. Open **http://localhost/irdp_e_clearance/auth/login.php**.
+3. Enter the username and password from your account table below. Students use the complete registration number, including slashes.
+4. Use another browser or a private window for a second account. Ordinary tabs share the same login.
 
-The home page uses a compact introduction, a short feature row and a small footer with click-to-call support at `0659913570` and `0662632565`. Help / Msaada stays collapsed until opened, with Swahili guidance matching the current flow: login, entry-fee control number and receipt, Finance approval before starting, clearance-period restrictions, independent office reviews, corrections and evidence, separate Finance debts, transcript download, same-browser password recovery, staff responsibilities and session expiry. Ordered instructions use the same button labels and upload limits as the application. The page grows naturally on small screens or with enlarged text.
+The interface, help, accessibility controls and system-generated emails use **English**. Names, historical records and remarks entered by users retain their original spelling.
 
-The layout adapts to phones, tablets and desktops. At widths up to 1024px, navigation opens as a drawer with a backdrop, Escape-to-close and keyboard focus containment. Dashboard cards and forms stack as space decreases; wide tables scroll within their own labelled regions.
+Passwords are case-sensitive. The 21 imported student accounts use **CSV Last Name in uppercase + the final four registration digits**. Earlier accounts keep their passwords. **IRDP/TCICT/MA26/0032** uses **ONESMO0032**, as requested. If you change a password through My Profile, ask the administrator to update this local reference.
 
-**View Certificate** has been removed from the student Dashboard and My Clearance. Its former URL returns authenticated students and administrators to their dashboard. Completed students can still download their Clearance Transcript. Historical certificate records, automatic issuance, PDF downloads and verification are retained for compatibility.
+Sessions expire after **30 minutes of inactivity** or **8 hours after login**. Select Continue session when warned; the eight-hour limit requires a fresh login.
 
-Select **Accessibility** at the bottom left to enlarge text up to 200%, enable high contrast, or reset the display. Its green/yellow trigger becomes an icon on phones; the panel scrolls within narrow and landscape screens. Preferences are saved in this browser. Need help occupies the opposite corner. The login password field uses an eye icon to show or hide the password; controls retain screen-reader labels and keyboard access. Keyboard users can use the skip link, Tab/Enter, and Escape to close panels or mobile navigation. Form labels, help and errors are linked for screen readers; reduced-motion preferences are respected.
+## Entry fee and clearance
 
-New passwords must contain **8–64 characters**, including passwords longer than 15 characters. Spaces and Unicode are supported; common passwords, simple repeats and predictable service passwords are rejected using a local blocklist. Existing passwords still work at login. Students go directly to their dashboard even when a legacy forced-change flag is set. **Change Password** in the top-right account menu is optional and requires the current password. Staff first-login requirements are preserved. Newly created accounts, password changes and resets use Argon2id (PHP Argon2id support required). Password changes revoke existing sessions. Run `php tests/password_accessibility_test.php` for focused checks.
+1. Admin opens the required academic cycle.
+2. A student who has never started clearance receives a **demo control number automatically after login** while clearance is open.
+3. Dashboard and Clearance Fee show the number, quoted amount, generation day, date and time in **Tanzania / EAT**. Repeated logins retain the same number and timestamp.
+4. Upload **one PDF, JPG or PNG receipt, up to 5 MB**, for the current control number.
+5. A received receipt unlocks **Start Clearance immediately**. Payment remains **AWAITING_REVIEW** until Finance verifies it; uploading does not mark payment as approved.
+6. Select the open cycle and submit once. The other **10 offices** review independently; Finance clearance duties remain locked until all ten approve. Entry-fee verification remains available to Finance separately.
 
-The administration menu includes Dashboard, Users, Password Reset Requests, Programmes, Clearance Period, Clearance Transcripts, Offices, Departments, Workflow, Clearance Monitoring and Reports. Emergency Review, Continuity, Escalations and Appeals, Settings and Authority, and Email Notifications controls have been removed. Older URLs return staff to their normal dashboard without processing actions.
+The default entry fee is **TSh 10,000**. Finance sets rates per cycle; existing quotes keep their amount. These control numbers are **local demonstration references**, without bank or GePG integration.
 
-Student email notifications use SMTP and a transaction-backed outbox. Students maintain their notification email under **My Profile**. Delivery runs automatically without an admin email screen. Office messages identify the relevant stage, office, cycle, decision and corrective or payment instructions. Starting clearance generates one notification per recipient. See [email setup and delivery instructions](README_EMAIL_NOTIFICATIONS.md). Local SMTP credentials belong in the ignored `config/mail.local.php` file.
+Each registration number can start **one clearance only**. Existing clearances continue through My Clearance without another entry fee. After clearance starts, its entry-fee number and receipt are locked; Finance can still approve the payment. Finance's later clearance stage handles other debts separately.
 
-Clearance stages are assigned to active reviewers belonging to the stage's office (and the student's department for stage 7). The Users form assigns an office when creating a reviewer. Student corrections and evidence can be resubmitted after rejection without an appeal; each submission still needs office approval.
+For a rejected stage, complete the instructions and select **Submit evidence to office**. Up to five PDF/JPG/PNG files are accepted, each up to 5 MB. Existing approvals and review history remain in place. **All 11 offices must approve** before completion and Download Student Clearance Certificate become available.
 
-Normal requests check the database version and skip installation, migrations and demo seeding once setup is complete. A new schema version triggers one setup under the database lock. For an explicit repair/setup check, use `setup.php` or `php jobs/migrate.php`. Page and officer-queue indexes are installed during setup. CSS/images use browser caching, text responses use compression when Apache supports it, and profile images revalidate privately after authentication.
+Certificate identity and document versions share the **transcripts** table. The database now uses **28 tables**, after merging certificates and removing the unused import_runs table. Import outcomes remain in audit_logs and student importing remains available. Existing certificate numbers, verification codes, document tokens and snapshots are preserved. See [Document storage and migration](docs/UNIFIED_DOCUMENTS.md).
 
-Measure local response times with `php tests/loading_probe.php`; an optional first argument specifies the page URL. Run `tests/features_test.php` against the isolated test database to verify normal startup bypasses the migration lock and clearance/upload workflows still work.
+## Office responsibilities
 
-When an office rejects a stage, the student dashboard shows **Upload evidence and resubmit**. In **My Clearance**, each rejected stage displays the reason, corrective instructions, an explanation box and file upload. Click **Submit evidence to office** to send the response and up to five PDF/JPG/PNG files (5 MB each). The responsible office sees the resubmission and documents in its review page. Other offices continue reviewing independently; existing approvals and the evidence history are preserved.
+| Stage | Office                 | Relevant review                                          | Payment handling                                            |
+| ----- | ---------------------- | -------------------------------------------------------- | ----------------------------------------------------------- |
+| 1     | Library                | Book returns and outstanding library liability           | Record liability; Finance handles payments                  |
+| 2     | Sports and Games       | Sports equipment and unresolved equipment liability      | Record liability; Finance handles payments                  |
+| 3     | Computer Lab           | Equipment, accessories and equipment liability           | Record liability; Finance handles payments                  |
+| 4     | Supplies               | Issued supplies and institutional property liability     | Record liability; Finance handles payments                  |
+| 5     | Transport              | Outstanding transport obligations                        | Record liability; Finance handles payments                  |
+| 6     | Dispensary             | Clearance decision and corrective instructions           | No amount or control-number field                           |
+| 7     | Head of Department     | Academic and departmental requirements                   | No amount or control-number field                           |
+| 8     | Hostels                | Accommodation property returns and outstanding liability | Record liability; Finance handles payments                  |
+| 9     | Student Affairs        | Student affairs clearance decision                       | No payment fields                                           |
+| 10    | Admissions             | Registration and admissions clearance decision           | No payment fields                                           |
+| 11    | Finance and Accounting | Other debts and payment verification                     | Control number and receipt when another payment is required |
 
-For a resubmission with files, the officer uses **Approve evidence and continue** after verifying that the evidence resolves all office requirements. For a response without attached files, **Approve correction and continue** allows the officer to confirm corrections verified with the office. Both record remaining amounts as cleared, missing items as available, and the office decision as cleared. Earlier rejection details remain in the review history. Submitting a response alone does not approve the stage; the authorized officer must verify and approve it. Ordinary approval still requires the office fields to show cleared requirements.
+**FMS001** reviews Head of Department for **Finance and Management Studies (FMS)** students, including ICT. **EPM001** reviews that stage for **Environmental Planning and Management (EPM)**. **FIN001** handles payments and is separate from FMS001.
 
-Open **My Profile** from the top-right account menu to see academic details, maintain your phone/email and change your picture. **Save phone** validates national/international contact formats and updates only the signed-in student's account and student record together. For pictures, choose a JPG or PNG up to 5 MB, review the preview, and click **Save picture**; the saved portrait appears in the profile and account header. XAMPP upload limits are configured in `.htaccess`; other PHP servers need `upload_max_filesize` of at least 6M and `post_max_size` of at least 32M.
+Officers review only assigned office work and, for departmental review, the matching department. Rejection requires a reason and corrective instructions. Finance uses **Approve - no other debt**, or issues a control number and verifies its receipt; Finance does not use Reject. Historical decisions and evidence are preserved.
 
-On Windows, verify that resizing preserves the actual image content with `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/profile_image_test.ps1`. This checks large portrait/landscape images and small images, including their colours. Pictures saved as blank images by the earlier resizing bug must be uploaded again from the original file.
-
-The landing and login background uses a 2048 × 1536 campus photograph from [this IRDP campus article](https://www.universityscoop.com/institute-of-rural-development-planning/), stored locally as `assets/img/irdp-campus-hd.jpg`.
-
-See [feature operations and verification](docs/FEATURES.md) for clearance, recovery, evidence, profile and import operations, migration instructions, dependencies and verification. Run tests/features_test.php against an isolated test server before deployment.
-
-Forgot password: students enter their registered email through **Forgot Password → Send OTP**, enter the six-digit code through **Verify OTP** in the same browser within 10 minutes, then choose a new password within 10 minutes of verification. Codes are hashed, single use and limited to five attempts; resends require 60 seconds and replace the previous code. Delivery requires working SMTP and uses the configuration in [the email setup guide](README_EMAIL_NOTIFICATIONS.md). Unknown, inactive and staff addresses receive the same public response. Password resets revoke existing sessions and require a new login. Run `php tests/student_password_otp_test.php` for isolated database, local SMTP and HTTP checks.
-
-Staff and students without access to their registered email contact support for administrator-assisted recovery. An administrator verifies identity under **Password Reset Requests** and issues a private code valid for 30 minutes. The account holder uses `auth/reset.php?manual=1` to enter that code and choose a new password. Completed, rejected and expired/replacement requests remain visible in the admin history. This support path works with email disabled.
-
-
-## Normal installation
-
-1. Extract the project into `C:\xampp\htdocs\irdp_e_clearance`.
-2. Start Apache and MySQL in XAMPP.
-3. Open `http://localhost/irdp_e_clearance/`.
-4. The application automatically creates the database, required tables, workflow reference data and missing demo accounts.
-5. Login normally. **You do not need to open `setup.php` first.**
-
-`setup.php` is retained only as a manual diagnostics/re-initialization page; it is not part of the normal login flow.
-
-After login, Students, Officers, Supervisors and Administrators can use **Log out** in the top-right account menu, including on mobile. It returns users to the login page after ending their session.
-
-### Session security on localhost
-
-- Authenticated sessions expire after **30 minutes without activity**, or **8 hours after login** even while active. Every request checks expiry on the server before a form action can run.
-- A warning appears **1 minute before expiry**. **Continue session / Endelea** renews the idle deadline and keeps the current form open; the 8-hour limit requires a new login.
-- Activity while filling forms renews the idle timer at most once per minute. Background status checks do not keep an unused account signed in. Tabs synchronize through the server when they regain focus and during status checks.
-- Sessions use strict mode and cookie-only IDs, with `HttpOnly` and `SameSite=Lax`. The `Secure` cookie flag is enabled automatically over HTTPS; ordinary HTTP localhost access still works.
-- Existing signed-in sessions from before this update must log in again. Settings are in `config/application.php`.
-
-Verify expiry, CSRF, cookie settings and revoked sessions with `C:\xampp\php\php.exe tests/session_security_test.php`. Browser warning, continuation and mobile checks run with `tests/responsive_test.php`.
-
-## Demo accounts
-
-### Administrator
-- Username: `admin`
-- Password: `Admin@IRDP2026`
-
-### Officers
-- `LIB001` / `Mrema@2026`
-- `SPORT001` / `John@2026`
-- `COMP001` / `Massawe@2026`
-- `SUP001` / `Mallya@2026`
-- `TRANS001` / `Kweka@2026`
-- `DISP001` / `Mushi@2026`
-- `EPM001` / `Mgimwa@2026`
-- `FMS001` / `Mwangaza@2026` — local demo Head of Department for FMS; change this temporary password at first login.
-- `HOSTEL001` / `Mushi@2026`
-- `DSA001` / `Said@2026`
-- `ADM001` / `Kimaro@2026`
-- `FIN001` / `Mollel@2026`
-
-FMS001 handles departmental clearance (stage 7) for FMS students; FIN001 handles entry fees and Finance debts (stage 11). FMS001 was added to this local demo database after ODICT moved to FMS and is not automatically seeded on a fresh installation. The local demo now has 34 accounts; see [the demo account guide](README_DEMO_ACCOUNTS.md) for first-login instructions and accounts whose passwords have changed.
-
-## Demo Student Accounts
-
-Mwongozo rahisi wa kutumia akaunti hizi: [README ya demo accounts](README_DEMO_ACCOUNTS.md). Ina login za wanafunzi, officers na admin, pamoja na hatua za kujaribu clearance.
-
-These accounts are fictional demonstration accounts created only for development, testing, and project presentation. They must not be used as real student accounts in production. There are fifteen active demo students: the original five and ten additional accounts. New accounts are created automatically on the next application startup; existing passwords and clearance history are preserved.
-
-| Student Name | Registration Number | Initial Password | Programme |
-|---|---|---|---|
-| Steven Juma Kibabaje | IRDP/ODICT/MA25/0001 | KIBABAJE0001 | ODICT |
-| Neema Asha Mfinanga | IRDP/BTCRP/MA25/0002 | MFINANGA0002 | BTCRP |
-| Baraka Musa Mushi | IRDP/BTCCD/MA25/0003 | MUSHI0003 | BTCCD |
-| Rehema John Mallya | IRDP/ODICT/MA25/0004 | MALLYA0004 | ODICT |
-| Daniel Peter Kweka | IRDP/BTCRP/MA25/0005 | KWEKA0005 | BTCRP |
-| Amina Hassan Said | IRDP/BTCCD/MA25/0006 | SAID0006 | BTCCD |
-| Joseph Paul Mrema | IRDP/ODICT/MA25/0007 | MREMA0007 | ODICT |
-| Fatuma Ali Mollel | IRDP/BTCRP/MA25/0008 | MOLLEL0008 | BTCRP |
-| Musa Ibrahim Kimaro | IRDP/BTCCD/MA25/0009 | KIMARO0009 | BTCCD |
-| Grace Esther Massawe | IRDP/ODICT/MA25/0010 | MASSAWE0010 | ODICT |
-| Peter James Mgimwa | IRDP/BTCRP/MA25/0011 | MGIMWA0011 | BTCRP |
-| Halima Omar Nyerere | IRDP/BTCCD/MA25/0012 | NYERERE0012 | BTCCD |
-| John David Mkude | IRDP/ODICT/MA25/0013 | MKUDE0013 | ODICT |
-| Zawadi Rose Mwakalinga | IRDP/BTCRP/MA25/0014 | MWAKALINGA0014 | BTCRP |
-| Emmanuel Daniel Msuya | IRDP/BTCCD/MA25/0015 | MSUYA0015 | BTCCD |
-
-Student login uses the Registration Number as the username. The initial password rule is **UPPERCASE LAST NAME + LAST 4 DIGITS OF REGISTRATION NUMBER**.
-
-Example:
-
-- Registration Number: `IRDP/ODICT/MA25/0001`
-- Student: `Steven Juma Kibabaje`
-- Initial Password: `KIBABAJE0001`
-
-The plain-text demo passwords appear in README.md only because these are fictional demonstration/testing accounts. Real production student passwords must never be documented in README.md or committed to source control. The database stores only secure Argon2id password hashes.
-
-## Future Development — Student Bulk Import
-
-The current presentation workflow uses the fifteen demo student accounts listed above. A future production onboarding flow can allow authorized Admin users to import official Excel/CSV records containing Registration Number, First Name, Middle Name, Last Name, and Programme.
-
-That production flow should validate registration numbers, reject duplicates, create the student accounts, generate each initial password from the uppercase last name plus the final four registration digits, and securely hash every password before storage. The existing prototype import utilities remain in the codebase for extension and testing, but bulk import is intentionally excluded from the current demo navigation.
-
-## Database configuration
-
-The default local configuration expects:
-
-- Host: `127.0.0.1`
-- Database: `irdp_e_clearance`
-- User: `root`
-- Password: empty
-
-If your XAMPP MySQL root account has a password, edit `config/database.php`.
-
-## Workflow
-
-Starting clearance opens all 11 office stages as `PENDING`. Every assigned officer can review independently in any order, including Finance. A rejected office requires student correction while other offices continue; `PAUSED` indicates outstanding student action. Resubmitting one office does not clear rejections at other offices. The last office to approve completes the request only when all 11 offices have approved and all liabilities are cleared; a certificate is generated automatically and a transcript snapshot becomes available.
-
-The automatic upgrade opens formerly `LOCKED` stages on active requests and preserves recorded approvals, rejections, evidence, reviewer assignments and issued documents. Completed and cancelled requests are unchanged. Run `php tests/parallel_clearance_test.php "mysql:host=127.0.0.1;port=3306;charset=utf8mb4"` for isolated upgrade checks.
-
-Administrators control the period from **Clearance Period**. Students can still log in while it is closed, but server-side checks reject new starts and resubmissions. Academic Results has been removed from both Admin and Student pages. After all eleven offices approve and liabilities are cleared, the system issues a **Clearance Transcript** with student/programme details, the clearance cycle, each approving office, the officer who approved and the approval date. It contains no marks, grades or GPA. Approvals are stored in an immutable document snapshot; repeated downloads reuse that snapshot. The PDF includes a document number and verification QR code at transcripts/verify.php; administrators can revoke issued documents.
-
-## Clearance entry fee
-
-Each registration number may start clearance only once, including across academic cycles and after completion or cancellation. Existing requests remain available through **My Clearance**; Start Clearance and new entry-fee requests are blocked on the server. Students who have never started pay a **TSh 10,000** entry fee before **Start Clearance**. Existing decisions, history and documents are preserved.
-
-The student selects **Clearance Fee → Request control number**. The assigned **Finance and Accounting officer** uses **Clearance Fee Payments** to issue the number, reviews the student's private receipt and explicitly confirms payment before approval unlocks Start Clearance. Receipt upload alone does not approve payment. Finance also sets the fee per academic cycle; the default is TSh 10,000, and rate changes affect new requests only. Administrators continue to control the clearance period and do not set this fee.
-
-Each student has one entry-fee payment per cycle. Issued amounts are retained, changed control numbers require new receipts, replacements invalidate stale approvals, and prior receipt versions remain in the authorized payment history. Student requests/uploads and new clearance starts respect the open period. Finance can verify submitted payments while the period is closed, but clearance cannot start until it reopens. The additive migration creates fee tables without updating existing clearance records.
-
-## Finance debt review
-
-Finance (stage 11) reviews **other debts separately from the entry fee**. If none remain, the officer selects **Approve — no other debt** without requiring another receipt. An existing outstanding payment cannot be bypassed with this action. Otherwise, use **Send control number** / **Update control number**, then **Approve** after verifying payment. Enter a 6–30 digit number; the stage stays **PENDING** while the student pays and uploads one PDF/JPG/PNG receipt up to 5 MB. Approval requires the current number, review cycle and receipt. Changing the number requires a new receipt; previous numbers, receipts and decisions remain in history. Finance rejection is unavailable in the UI and blocked on the server. Active legacy Finance rejections reopen as pending without changing approvals or issued documents. All 11 office approvals are required for completion.
-
-## Reports
-
-Administrators can generate weekly, monthly and custom date-range PDF reports.
-
-## Code quality
-
-PHP files are formatted with clear indentation and logical sections. SQL is formatted vertically for readability, and prepared statements are used for application data.
-
-## Verification
-
-Run `php tests/features_test.php "mysql:host=127.0.0.1;port=3306;charset=utf8mb4"` from the project directory. The test creates a randomly named temporary database and removes it afterward; it never bootstraps the application database. The database user needs CREATE and DROP DATABASE privileges.
-
-To test against a separate local MariaDB instance, pass its server DSN as the first argument, for example `php tests/features_test.php "mysql:host=127.0.0.1;port=13317;charset=utf8mb4"`. This also runs the competing-connection review test. Optional credentials use `IRDP_TEST_USER` and `IRDP_TEST_PASSWORD` environment variables.
-
-Workflow configuration supports stages 1 through 11; saving a stage updates its configuration for new requests. Default seeding preserves existing configuration.
-
-Input validation rules, audit findings and test commands: [Input validation audit](docs/INPUT_VALIDATION_AUDIT.md).
-
-Run `php tests/responsive_test.php "mysql:host=127.0.0.1;port=3306;charset=utf8mb4"` for browser checks at 320–1440px and 100%/200% text size. This creates and removes an isolated database. It needs Node 22+ and an installed Edge/Chromium browser; on Windows it can use VS Code’s bundled Node runtime. Set `IRDP_NODE_BINARY` or `IRDP_BROWSER_BINARY` to override executable paths, and optionally `IRDP_SCREENSHOT_DIR` to save viewport screenshots.
+## Administrator tasks
+
+- Create accounts under Users with the correct role, department and programme. Assign an office to each officer and a matching department to departmental reviewers.
+- The account form's email field is labelled **Email**. Email verification for recovery remains a separate check.
+- Manage programmes, departments and the clearance period; monitor requests and verify identity before administrator-assisted recovery.
+
+## Email and account recovery
+
+System notification and OTP templates use **English**. Queued legacy templates are converted to English when sent. Decision emails contain an English summary and a link to My Clearance. Full officer comments and corrective instructions remain available inside the system, preserved as written.
+
+SMTP settings and the Gmail App Password are in **config/mail.local.php**. The App Password is not included here. The Windows task **IRDP e-Clearance Email Notifications** checks the queue every minute while the configured Windows user is logged in. The PC, MySQL and network must be available. In-app notifications remain available if SMTP fails.
+
+Students use Forgot Password with their registered email. The six-digit OTP expires in 10 minutes, allows five attempts and can be resent after 60 seconds. Use the same browser throughout. Staff and students without email access should contact support for identity verification and administrator-assisted recovery.
+
+## All user accounts
+
+**56 ACTIVE accounts: 1 administrator, 12 officers and 43 students.** All listed passwords have been verified against this installation. Current as of 18 October 2026.
+
+### ADMIN — 1 account
+
+| Full name            | Username | Password       | Programme / Office | Department | Status |
+| -------------------- | -------- | -------------- | ------------------ | ---------- | ------ |
+| System Administrator | admin    | Admin@IRDP2026 | ADMIN              | —          | ACTIVE |
+
+### OFFICER — 12 accounts
+
+| Full name              | Username  | Password     | Programme / Office                             | Department | Status |
+| ---------------------- | --------- | ------------ | ---------------------------------------------- | ---------- | ------ |
+| Robert Kimaro          | ADM001    | Kimaro@2026  | Admissions Officer                             | —          | ACTIVE |
+| Daniel Massawe         | COMP001   | Massawe@2026 | Computer Lab/Room in Charge                    | —          | ACTIVE |
+| Asha Mushi             | DISP001   | Mushi@2026   | Dispensary                                     | —          | ACTIVE |
+| Fatuma Said            | DSA001    | Said@2026    | Director of Student Affairs                    | —          | ACTIVE |
+| Michael Mgimwa         | EPM001    | Mgimwa@2026  | Head of Department                             | EPM        | ACTIVE |
+| David Mollel           | FIN001    | Mollel@2026  | Director of Finance and Accounts               | —          | ACTIVE |
+| Head of Department FMS | FMS001    | HOD123       | Head of Department                             | FMS        | ACTIVE |
+| John Mushi             | HOSTEL001 | Mushi@2026   | Hostels Superintendent (Accommodation Officer) | —          | ACTIVE |
+| Joseph Mrema           | LIB001    | Mrema@2026   | Librarian                                      | —          | ACTIVE |
+| Rehema John            | SPORT001  | John@2026    | Sports and Games (Matron)                      | —          | ACTIVE |
+| Grace Mallya           | SUP001    | Mallya@2026  | Supplies Officer                               | —          | ACTIVE |
+| Peter Kweka            | TRANS001  | Kweka@2026   | Transport Officer                              | —          | ACTIVE |
+
+### STUDENT — 43 accounts
+
+#### BTCCD
+
+| Full name             | Username             | Password    | Programme / Office | Department | Status |
+| --------------------- | -------------------- | ----------- | ------------------ | ---------- | ------ |
+| Baraka Musa Mushi     | IRDP/BTCCD/MA25/0003 | MUSHI0003   | BTCCD              | EPM        | ACTIVE |
+| Amina Hassan Said     | IRDP/BTCCD/MA25/0006 | SAID0006    | BTCCD              | EPM        | ACTIVE |
+| Musa Ibrahim Kimaro   | IRDP/BTCCD/MA25/0009 | KIMARO0009  | BTCCD              | EPM        | ACTIVE |
+| Halima Omar Nyerere   | IRDP/BTCCD/MA25/0012 | NYERERE0012 | BTCCD              | EPM        | ACTIVE |
+| Emmanuel Daniel Msuya | IRDP/BTCCD/MA25/0015 | MSUYA0015   | BTCCD              | EPM        | ACTIVE |
+
+#### BTCRP
+
+| Full name              | Username             | Password       | Programme / Office | Department | Status |
+| ---------------------- | -------------------- | -------------- | ------------------ | ---------- | ------ |
+| Neema Asha Mfinanga    | IRDP/BTCRP/MA25/0002 | MFINANGA0002   | BTCRP              | EPM        | ACTIVE |
+| Daniel Peter Kweka     | IRDP/BTCRP/MA25/0005 | KWEKA0005      | BTCRP              | EPM        | ACTIVE |
+| Fatuma Ali Mollel      | IRDP/BTCRP/MA25/0008 | MOLLEL0008     | BTCRP              | EPM        | ACTIVE |
+| Peter James Mgimwa     | IRDP/BTCRP/MA25/0011 | MGIMWA0011     | BTCRP              | EPM        | ACTIVE |
+| Zawadi Rose Mwakalinga | IRDP/BTCRP/MA25/0014 | MWAKALINGA0014 | BTCRP              | EPM        | ACTIVE |
+
+#### ODDAM
+
+| Full name               | Username             | Password     | Programme / Office | Department | Status |
+| ----------------------- | -------------------- | ------------ | ------------------ | ---------- | ------ |
+| Abubakar Hamis Kitogota | IRDP/ODDAM/MA26/0009 | KITOGOTA0009 | ODDAM              | EPM        | ACTIVE |
+
+#### ODICT
+
+| Full name                | Username             | Password      | Programme / Office | Department | Status |
+| ------------------------ | -------------------- | ------------- | ------------------ | ---------- | ------ |
+| Steven Juma Kibabaje     | IRDP/ODICT/MA25/0001 | KIBABAJE0001  | ODICT              | FMS        | ACTIVE |
+| Rehema John Mallya       | IRDP/ODICT/MA25/0004 | MALLYA0004    | ODICT              | FMS        | ACTIVE |
+| Joseph Paul Mrema        | IRDP/ODICT/MA25/0007 | MREMA0007     | ODICT              | FMS        | ACTIVE |
+| Grace Esther Massawe     | IRDP/ODICT/MA25/0010 | MASSAWE0010   | ODICT              | FMS        | ACTIVE |
+| John David Mkude         | IRDP/ODICT/MA25/0013 | MKUDE0013     | ODICT              | FMS        | ACTIVE |
+| Miriam Ngugi Elias       | IRDP/ODICT/MA26/0001 | ELIAS0001     | ODICT              | FMS        | ACTIVE |
+| ANDREA RENATUS JUMA      | IRDP/ODICT/MA26/0002 | JUMA0002      | ODICT              | FMS        | ACTIVE |
+| Erika Emmanuel Mazengo   | IRDP/ODICT/MA26/0004 | MAZENGO0004   | ODICT              | FMS        | ACTIVE |
+| Shida Wilphonce Manonga  | IRDP/ODICT/MA26/0005 | MANONGA0005   | ODICT              | FMS        | ACTIVE |
+| Ritha Thomas Pangani     | IRDP/ODICT/MA26/0006 | PANGANI0006   | ODICT              | FMS        | ACTIVE |
+| Jeska Matayo Nkya        | IRDP/ODICT/MA26/0008 | NKYA0008      | ODICT              | FMS        | ACTIVE |
+| ELIZABETH BOAZ MWAMBIJE  | IRDP/ODICT/MA26/0009 | MWAMBIJE0009  | ODICT              | FMS        | ACTIVE |
+| HERIETH KILIAN MWACHA    | IRDP/ODICT/MA26/0010 | MWACHA0010    | ODICT              | FMS        | ACTIVE |
+| Lilian Nurdin Mwalongo   | IRDP/ODICT/MA26/0014 | MWALONGO0014  | ODICT              | FMS        | ACTIVE |
+| Kelvin Fredrick Bakari   | IRDP/ODICT/MA26/0015 | BAKARI0015    | ODICT              | FMS        | ACTIVE |
+| KHALFANI SALUMU ATHUMAN  | IRDP/ODICT/MA26/0016 | ATHUMAN0016   | ODICT              | FMS        | ACTIVE |
+| John Alfonce Sabuni      | IRDP/ODICT/MA26/0019 | SABUN0019     | ODICT              | FMS        | ACTIVE |
+| SAIDI SAID JUMA          | IRDP/ODICT/MA26/0021 | JUMA0021      | ODICT              | FMS        | ACTIVE |
+| PRISCA MASHAKA MWAKILASA | IRDP/ODICT/MA26/0022 | MWAKILASA0022 | ODICT              | FMS        | ACTIVE |
+| Hilling Onesmo Steven    | IRDP/ODICT/MA26/0023 | STEVENS0023   | ODICT              | FMS        | ACTIVE |
+| Maulidi Hemedi Likonda   | IRDP/ODICT/MA26/0024 | LIKONDA0024   | ODICT              | FMS        | ACTIVE |
+
+#### TCICT
+
+| Full name             | Username             | Password      | Programme / Office | Department | Status |
+| --------------------- | -------------------- | ------------- | ------------------ | ---------- | ------ |
+| Jenipher Deogratius   | IRDP/TCICT/MA26/0001 | MWIMANZI0001  | TCICT              | FMS        | ACTIVE |
+| Agness Kenneth        | IRDP/TCICT/MA26/0003 | BINTABARA0003 | TCICT              | FMS        | ACTIVE |
+| Brayan Prosper Kilolo | IRDP/TCICT/MA26/0005 | KILOLO0005    | TCICT              | FMS        | ACTIVE |
+| Agatha willium Msela  | IRDP/TCICT/MA26/0007 | MSELA0007     | TCICT              | FMS        | ACTIVE |
+| Linus Richard         | IRDP/TCICT/MA26/0008 | KABENDELA0008 | TCICT              | FMS        | ACTIVE |
+| Majid juma mrisho     | IRDP/TCICT/MA26/0009 | MRISHO0009    | TCICT              | FMS        | ACTIVE |
+| Mzungu Elius          | IRDP/TCICT/MA26/0010 | MAPERA0010    | TCICT              | FMS        | ACTIVE |
+| Britney Dickson       | IRDP/TCICT/MA26/0011 | MLELWA0011    | TCICT              | FMS        | ACTIVE |
+| Mohamed Sadick        | IRDP/TCICT/MA26/0013 | MOHAMED0013   | TCICT              | FMS        | ACTIVE |
+| Nasri zahana habir    | IRDP/TCICT/MA26/0015 | HABIR0015     | TCICT              | FMS        | ACTIVE |
+| TIVEN ONESMO          | IRDP/TCICT/MA26/0032 | ONESMO0032    | TCICT              | FMS        | ACTIVE |
+
+## Checks and troubleshooting
+
+| Problem                      | Action                                                                            |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| Invalid username or password | Use the exact table entry and letter case; remove old browser autofill            |
+| Clearance closed             | Ask Admin to open the required cycle                                              |
+| Start Clearance unavailable  | Submit a receipt for the current entry-fee control number while clearance is open |
+| No active officer assigned   | Check active status, office authority and the departmental reviewer's department  |
+| Certificate unavailable      | Check My Clearance; all 11 offices must approve                                   |
+| Email not received           | Check notification email, inbox/spam, SMTP settings and the worker                |
+
+Run from the project directory:
+
+```powershell
+& C:/xampp/php/php.exe tests/automatic_entry_fee_test.php
+& C:/xampp/php/php.exe tests/email_notifications_test.php
+& C:/xampp/php/php.exe tests/student_password_otp_test.php
+& C:/xampp/php/php.exe tests/clearance_once_test.php
+& C:/xampp/php/php.exe tests/validation_test.php
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File jobs/run_email_worker.ps1 -Check
+```
+
+Integration tests use disposable databases. They do not submit real student clearances or send through the live Gmail account. Historical README copies are stored as text references in **storage/private/documentation_archive**; this file is the current guide.

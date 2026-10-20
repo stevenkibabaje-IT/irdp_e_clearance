@@ -31,13 +31,13 @@ function send_student_password_otp(array $user, string $otp, ?array $config = nu
     $mail->SMTPAutoTLS = $config['encryption'] !== 'none';
     $mail->Timeout = max(1, min(30, (int)$config['timeout']));
     $mail->CharSet = 'UTF-8';
+    $mail->addCustomHeader('Content-Language', 'en');
     $mail->setFrom($config['from_email'], $config['from_name']);
     $mail->addAddress($user['email'], $user['full_name']);
     $mail->Subject = 'IRDP e-Clearance: Password reset OTP';
-    $mail->Body = "Habari ".$user['full_name'].",\n\nOTP yako ya kubadilisha nenosiri ni: ".$otp
-        ."\n\nYour password reset OTP is: ".$otp."\nThis code expires in ".STUDENT_OTP_MINUTES
+    $mail->Body = "Hello ".$user['full_name'].",\n\nYour password reset OTP is: ".$otp."\nThis code expires in ".STUDENT_OTP_MINUTES
         ." minutes and can be used once. Enter it in the same browser where you requested recovery."
-        ."\nUsimpe mtu mwingine code hii. Ikiwa hukuomba reset, puuza email hii; nenosiri lako halijabadilishwa.\n\nIRDP e-Clearance";
+        ."\nDo not share this code with anyone. If you did not request a password reset, ignore this email; your password has not changed.\n\nIRDP e-Clearance";
     try { $mail->send(); }
     catch (Throwable $error) { throw new RuntimeException('Recovery email delivery failed.'); }
 }

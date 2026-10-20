@@ -59,6 +59,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         login_user($user);
         audit($pdo, 'LOGIN', (int) $user['id'], null, 'Successful login');
 
+        if ($user['role_name']==='STUDENT') {
+            try { ensure_student_clearance_fee($pdo,(int)$user['id']); }
+            catch (Throwable $error) {
+                error_log('Automatic entry-fee control number preparation failed.');
+                flash('warning','Your control number could not be prepared. Open Clearance Fee to try again.');
+            }
+        }
+
         redirect($user['role_name'] !== 'STUDENT' && (int)$user['force_password_change'] ? 'auth/change_password.php' : role_dashboard($user['role_name']));
     } catch (RuntimeException $e) {
         $error = user_safe_error($e);
@@ -78,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="<?= e(url('assets/css/style.css?v=' . filemtime(__DIR__.'/../assets/css/style.css'))) ?>">
 </head>
 <body class="login-page">
-    <a class="skip-link" href="#main-content">Skip to login / Nenda kwenye login</a>
+    <a class="skip-link" href="#main-content">Skip to login</a>
     <?php $institutionHome = true; require __DIR__ . '/../includes/institution_header.php'; ?>
 
     <main class="login-layout">

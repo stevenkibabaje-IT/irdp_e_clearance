@@ -83,7 +83,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="notification-icon <?= e($kind) ?>"><?= icon($noticeIcon) ?></span>
                     <div class="notification-body">
                         <div class="notification-card-heading"><h3 id="notice-<?= (int)$notification['id'] ?>"><?= e($notification['title']) ?></h3><?php if (!$notification['is_read']): ?><span class="notification-new">New</span><?php endif; ?></div>
-                        <p><?= e($notification['message']) ?></p>
+                        <p><?= e(notification_email_message($notification['message'])) ?></p>
                         <div class="notification-meta"><?= icon('clock') ?><?php if ($notification['iso_time']): ?><time datetime="<?= e($notification['iso_time']) ?>"><?= e($dateLabel) ?> &middot; <?= e($notification['display_time']) ?></time><?php endif; ?><span class="notification-read-state"><?= $notification['is_read'] ? 'Read' : 'Unread' ?></span></div>
                     </div>
                 </article>

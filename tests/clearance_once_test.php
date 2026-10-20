@@ -15,14 +15,17 @@ function once_check(bool $condition, string $message): void
 function once_http(string $origin, string $route, string $cookie, ?array $post = null): array
 {
     $curl = curl_init($origin.$route);
-    curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>30,
-        CURLOPT_COOKIEFILE=>$cookie, CURLOPT_COOKIEJAR=>$cookie, CURLOPT_FOLLOWLOCATION=>false]);
+    curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_HEADER=>true, CURLOPT_TIMEOUT=>30,
+        CURLOPT_COOKIE=>$GLOBALS['once_test_cookies'][$cookie]??'', CURLOPT_FOLLOWLOCATION=>false]);
     if ($post !== null) { curl_setopt_array($curl, [CURLOPT_POST=>true, CURLOPT_POSTFIELDS=>http_build_query($post)]); }
     $body = curl_exec($curl);
     if ($body === false) { throw new RuntimeException(curl_error($curl)); }
     $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    $headerLength=(int)curl_getinfo($curl,CURLINFO_HEADER_SIZE);
     curl_close($curl);
-    return [$status, $body];
+    $headers=substr($body,0,$headerLength);
+    if(preg_match('/^Set-Cookie:\s*(PHPSESSID=[^;\r\n]+)/mi',$headers,$match)){$GLOBALS['once_test_cookies'][$cookie]=$match[1];}
+    return [$status, substr($body,$headerLength)];
 }
 function once_csrf(string $html): string
 {
@@ -52,8 +55,8 @@ try {
     $fee = clearance_fee_record($pdo, $feeId); $number = '991234567891';
     $stored = bin2hex(random_bytes(24)).'.pdf';
     file_put_contents(private_path('evidence', $stored), "%PDF-1.4\n% isolated clearance test\n");
-    $pdo->prepare('INSERT INTO clearance_fee_receipts(payment_id,payment_version,control_number,uploader_id,stored_name,original_name,mime_type,byte_size) VALUES (?,1,?,?,?,"test.pdf","application/pdf",40)')
-        ->execute([$feeId,$number,$student['user_id'],$stored]);
+    $pdo->prepare('INSERT INTO clearance_fee_receipts(payment_id,payment_version,control_number,uploader_id,stored_name,original_name,mime_type,byte_size) VALUES (?,?,?,?,?,"test.pdf","application/pdf",40)')
+        ->execute([$feeId,$fee['payment_version'],$number,$student['user_id'],$stored]);
     $receipt = (int)$pdo->lastInsertId();
     $pdo->prepare('UPDATE clearance_fee_payments SET status="APPROVED",control_number=?,receipt_id=?,approved_by=?,approved_at=NOW() WHERE id=?')
         ->execute([$number,$receipt,$fee['assigned_officer_id'],$feeId]);
@@ -69,7 +72,7 @@ try {
         once_check((bool)$socket, 'Test port unavailable.');
         $address=stream_socket_get_name($socket,false); fclose($socket);
         $port=(int)substr(strrchr($address,':'),1); $origins[$index]='http://127.0.0.1:'.$port;
-        $web[$index]=proc_open([PHP_BINARY,'-d','session.save_path='.$temporary.'/sessions','-S','127.0.0.1:'.$port,'-t',dirname(__DIR__),__DIR__.'/http_router.php'],
+        $web[$index]=proc_open([PHP_BINARY,'-d','session.save_path="'.str_replace('\\','/',$temporary).'/sessions"','-S','127.0.0.1:'.$port,'-t',dirname(__DIR__),__DIR__.'/http_router.php'],
             [0=>['pipe','r'],1=>['file',$temporary.'/http-'.$index.'.log','a'],2=>['file',$temporary.'/http-'.$index.'.log','a']],$pipes,dirname(__DIR__),$environment);
         once_check(is_resource($web[$index]), 'Test HTTP server did not start.'); fclose($pipes[0]);
         $ready=false;
@@ -92,7 +95,7 @@ try {
     foreach ($origins as $index=>$origin) {
         $curl=curl_init($origin.'/student/start.php');
         curl_setopt_array($curl,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>30,CURLOPT_POST=>true,
-            CURLOPT_COOKIEFILE=>$temporary.'/cookie-'.$index,
+            CURLOPT_COOKIE=>$GLOBALS['once_test_cookies'][$temporary.'/cookie-'.$index]??'',
             CURLOPT_POSTFIELDS=>http_build_query(['csrf_token'=>$tokens[$index],'academic_year'=>$cycle])]);
         curl_multi_add_handle($multi,$curl); $curls[]=$curl;
     }

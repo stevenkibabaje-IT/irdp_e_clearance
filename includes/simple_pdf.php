@@ -325,7 +325,7 @@ function clearance_transcript_pages(array $data): array
     $snapshot = $data['snapshot'] ?? [];
     if (($snapshot['document_type'] ?? '') !== 'CLEARANCE_TRANSCRIPT'
         || count($snapshot['approvals'] ?? []) !== 11) {
-        throw new RuntimeException('A complete clearance transcript snapshot is required.');
+        throw new RuntimeException('A complete Student Clearance Certificate snapshot is required.');
     }
     $student = $snapshot['student'];
     $approvals = $snapshot['approvals'];
@@ -356,7 +356,7 @@ function clearance_transcript_pages(array $data): array
             ['type' => 'rect', 'x' => 0, 'y' => 790, 'width' => 595, 'height' => 52, 'color' => [0.03, 0.36, 0.22]],
             ['type' => 'rect', 'x' => 0, 'y' => 787, 'width' => 595, 'height' => 3, 'color' => [0.72, 0.53, 0.08]],
             ['text' => 'INSTITUTE OF RURAL DEVELOPMENT PLANNING', 'x' => 58, 'y' => 817, 'size' => 12, 'bold' => true],
-            ['text' => 'CLEARANCE TRANSCRIPT', 'x' => 58, 'y' => 801, 'size' => 10, 'bold' => true],
+            ['text' => 'Student Clearance Certificate', 'x' => 58, 'y' => 801, 'size' => 10, 'bold' => true],
         ];
         $logoPath = __DIR__ . '/../assets/img/irdp-logo.jpg';
         if (is_file($logoPath)) {
@@ -404,7 +404,7 @@ function clearance_transcript_pages(array $data): array
         $items[] = ['text' => 'Document No.: ' . $data['document_number'], 'x' => 42, 'y' => 141, 'size' => 9, 'bold' => true];
         $items[] = ['text' => 'Issued: ' . $data['generated_at'], 'x' => 42, 'y' => 125, 'size' => 8];
         if ($pageIndex === count($chunks) - 1) {
-            $items[] = ['text' => 'Scan the QR code to verify this clearance transcript.', 'x' => 42, 'y' => 94, 'size' => 8];
+            $items[] = ['text' => 'Scan the QR code to verify this Student Clearance Certificate.', 'x' => 42, 'y' => 94, 'size' => 8];
             $items = array_merge($items, pdf_transcript_qr($verificationUrl, 465, 36, 75));
             $items[] = ['text' => 'Scan to verify', 'x' => 468, 'y' => 25, 'size' => 7, 'bold' => true];
         } else {

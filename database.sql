@@ -175,14 +175,8 @@ CREATE TABLE IF NOT EXISTS email_outbox (
  FOREIGN KEY(notification_id) REFERENCES notifications(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS certificates (
- id INT AUTO_INCREMENT PRIMARY KEY,
- clearance_request_id INT NOT NULL UNIQUE,
- certificate_number VARCHAR(80) NOT NULL UNIQUE,
- verification_code VARCHAR(80) NOT NULL UNIQUE,
- issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY(clearance_request_id) REFERENCES clearance_requests(id) ON DELETE CASCADE
-);
+-- Certificate identity and versioned document snapshots are stored together in
+-- transcripts, installed by jobs/migrate.php. No separate certificates table.
 
 CREATE TABLE IF NOT EXISTS audit_logs (
  id INT AUTO_INCREMENT PRIMARY KEY,

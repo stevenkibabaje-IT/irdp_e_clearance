@@ -15,7 +15,7 @@ $sessionState = authenticated_session_state();
     <p class="session-warning-countdown">Time remaining: <strong id="sessionWarningCountdown"></strong></p>
     <p class="danger-text" id="sessionWarningError" role="status"></p>
     <div class="session-warning-actions">
-        <button class="btn primary" id="sessionContinue" type="button">Continue session / Endelea</button>
+        <button class="btn primary" id="sessionContinue" type="button">Continue session</button>
     </div>
 </dialog>
 <script defer src="<?= e(url('assets/js/session.js?v=' . filemtime(__DIR__ . '/../assets/js/session.js'))) ?>"></script>

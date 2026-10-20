@@ -257,7 +257,6 @@ function commit_import(PDO $pdo,array $preview,int $adminId): array {
             }
         }
     }
-    $pdo->prepare('INSERT INTO import_runs(admin_id,created_count,skipped_count,failed_count) VALUES (?,?,?,?)')->execute([$adminId,$result['created'],$result['skipped'],$result['failed']]);
     audit($pdo,'STUDENT_IMPORT_COMPLETED',$adminId,null,'Created '.$result['created'].'; skipped '.$result['skipped'].'; failed '.$result['failed']);
     return $result;
 }

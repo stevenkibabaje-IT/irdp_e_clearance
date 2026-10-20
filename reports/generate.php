@@ -4,6 +4,34 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_role('ADMIN');
 require_once __DIR__ . '/../includes/simple_pdf.php';
+require_once __DIR__ . '/../includes/reporting.php';
+
+if (isset($_GET['report'])) {
+    try {
+        $format=$_GET['format']??'pdf';
+        if (!in_array($format,['csv','pdf'],true)) { throw new InvalidArgumentException('Choose CSV or PDF.'); }
+        $report=clearance_report_data($pdo,$_GET);
+    } catch (InvalidArgumentException $e) { http_response_code(400); exit($e->getMessage()); }
+    $filename='IRDP-'.$report['filters']['report'].'-'.date('Y-m-d');
+    if ($format==='csv') {
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="'.$filename.'.csv"');
+        $out=fopen('php://output','wb'); fwrite($out,"\xEF\xBB\xBF");
+        fputcsv($out,$report['columns'],',','"','');
+        foreach ($report['rows'] as $row) { fputcsv($out,array_map('clearance_report_csv_cell',array_values($row)),',','"',''); }
+        fclose($out); exit;
+    }
+    $lines=['Generated: '.date('Y-m-d H:i:s').' EAT','Result rows: '.count($report['rows'])];
+    foreach ($report['filters'] as $key=>$value) { if ($value!=='' && $key!=='report') { $lines[]=ucfirst($key).': '.$value; } }
+    $lines[]=$report['notes']; $lines[]='';
+    foreach ($report['rows'] as $index=>$row) {
+        $lines[]='Record '.($index+1);
+        foreach ($row as $column=>$value) { $lines[]=str_replace(["\r","\n"],' ',str_replace('_',' ',$column).': '.($value??'-')); }
+        $lines[]='';
+    }
+    if (!$report['rows']) { $lines[]='No records match these filters.'; }
+    pdf_report($report['title'],$lines,$filename.'.pdf');
+}
 
 $type = (string) ($_GET['type'] ?? 'weekly');
 if (!in_array($type, ['weekly','monthly','custom'], true)) { http_response_code(400); exit('Invalid report type.'); }
@@ -90,9 +118,9 @@ $students = $studentStmt->fetchAll();
 
 $certificateStmt = $pdo->prepare(
     'SELECT COUNT(*)
-     FROM certificates c
+     FROM transcripts c
      INNER JOIN clearance_requests cr ON cr.id = c.clearance_request_id
-     WHERE DATE(c.issued_at) BETWEEN ? AND ?'
+     WHERE c.certificate_number IS NOT NULL AND DATE(c.issued_at) BETWEEN ? AND ?'
 );
 $certificateStmt->execute([$from, $to]);
 $certificateCount = (int) $certificateStmt->fetchColumn();

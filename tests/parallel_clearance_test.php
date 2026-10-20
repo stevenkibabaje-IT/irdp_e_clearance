@@ -65,7 +65,7 @@ try {
     ensure_transcript($pdo,(int)$student['id'],(int)$pdo->query('SELECT id FROM users WHERE username="admin"')->fetchColumn(),$completed);
     $pdo->prepare('INSERT INTO stage_evidence(stage_id,cycle_number,uploader_id,stored_name,original_name,mime_type,byte_size) VALUES (?,1,?,?,"historical-receipt.pdf","application/pdf",64)')
         ->execute([$activeStages[2],$student['user_id'],bin2hex(random_bytes(24)).'.pdf']);
-    $preservedTables=['users','students','stage_actions','stage_evidence','certificates','transcripts'];
+    $preservedTables=['users','students','stage_actions','stage_evidence','transcripts'];
     $before=[];
     foreach($preservedTables as $table){$before[$table]=$pdo->query('SELECT * FROM '.$table.' ORDER BY id')->fetchAll();}
     $recordedStages=$pdo->query('SELECT * FROM clearance_stages WHERE clearance_request_id<>'.$active.' OR status<>"LOCKED" ORDER BY id')->fetchAll();
@@ -89,7 +89,7 @@ try {
     echo "PASS: upgrade opens eight locked offices, retains active rejection and in-review state, and preserves approvals/evidence/assignments/documents/terminal requests\n";
 
     $after=[];
-    foreach(['clearance_requests','clearance_stages','review_cycles','stage_actions','stage_evidence','certificates','transcripts'] as $table){$after[$table]=$pdo->query('SELECT * FROM '.$table.' ORDER BY id')->fetchAll();}
+    foreach(['clearance_requests','clearance_stages','review_cycles','stage_actions','stage_evidence','transcripts'] as $table){$after[$table]=$pdo->query('SELECT * FROM '.$table.' ORDER BY id')->fetchAll();}
     migrate_parallel_clearance($pdo);
     ensure_database_ready($pdo);
     foreach($after as $table=>$rows){parallel_check($pdo->query('SELECT * FROM '.$table.' ORDER BY id')->fetchAll()===$rows,'Repeated migration changed '.$table.'.');}

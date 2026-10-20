@@ -78,9 +78,21 @@ for ($step=1;$step<=11;$step++) {
     if (liabilities_clear([], $step)) {throw new RuntimeException('Missing approval details treated as cleared.');}
 }
 if (liabilities_clear(['decision'=>'CLEARED','debt'=>'bad','recovered'=>'0'],11)
-    || liabilities_clear(['decision'=>'CLEARED'],7)
+    || !liabilities_clear(['decision'=>'CLEARED'],7)
     || !liabilities_clear(['decision'=>'CLEARED','debt'=>'0','recovered'=>'0'],11)) {
     throw new RuntimeException('Finance or departmental liability validation failed.');
+}
+if (!liabilities_clear(['decision'=>'CLEARED'],6)
+    || liabilities_clear(['decision'=>'NOT_CLEARED'],6)
+    || !liabilities_clear(['amount'=>'0'],6)
+    || liabilities_clear(['amount'=>'1000'],6)
+    || liabilities_clear(['decision'=>'CLEARED','amount'=>'1000'],7)) {
+    throw new RuntimeException('Dispensary/department decisions or legacy liability compatibility failed.');
+}
+foreach([6,7,9,10] as $step){
+    foreach(review_fields($step) as [$key,$label,$type]){
+        if(in_array($type,['number','control_number'],true)){throw new RuntimeException('An unrelated payment field remains in an office decision.');}
+    }
 }
 foreach ([
     ['name'=>'file.pdf','error'=>0],

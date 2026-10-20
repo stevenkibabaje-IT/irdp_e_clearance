@@ -13,6 +13,59 @@ function queue_notification_email(PDO $pdo, int $notificationId): void
         ->execute([$notificationId]);
 }
 
+/** Translate built-in legacy templates still waiting in the outbox; preserve user-entered remarks. */
+function notification_email_message(string $message): string
+{
+    $message=preg_replace_callback('/Ofisi ya ([^\r\n]+?) imeidhinisha hatua hii ya clearance yako\./u',static fn($m)=>'The '.$m[1].' office has approved this clearance stage.',$message);
+    $message=preg_replace_callback('/Ofisi ya ([^\r\n]+?) imekataa hatua hii\. Rekebisha yaliyoelekezwa kabla ya kutuma tena\./u',static fn($m)=>'The '.$m[1].' office has rejected this stage. Complete the requested corrections before resubmitting.',$message);
+    $message=preg_replace_callback('/Ofisi ya ([^\r\n]+?) imeidhinisha hatua ya mwisho iliyobaki\. Ofisi zote 11 zimeidhinisha clearance yako\./u',static fn($m)=>'The '.$m[1].' office has approved the final remaining stage. All 11 offices have approved your clearance.',$message);
+    $message=preg_replace_callback('/Receipt ya malipo kwa control number ([0-9]+) imewasilishwa\. Finance itahakiki malipo kabla ya kuidhinisha hatua hii\./u',static fn($m)=>'A payment receipt for control number '.$m[1].' has been submitted. Finance will verify payment before approving this stage.',$message);
+    $message=preg_replace_callback('/Marekebisho na ushahidi vimewasilishwa kwa ofisi hii kwa review cycle ([0-9]+)\. Ofisi itahakiki kabla ya kutoa uamuzi mpya\./u',static fn($m)=>'Corrections and evidence have been submitted to this office for review cycle '.$m[1].'. The office will review the submission before making a new decision.',$message);
+    $message=strtr($message,[
+        'Ofisi: '=>'Office: ', 'Uamuzi: '=>'Decision: ', 'Hali: '=>'Status: ',
+        'Maelezo ya ofisi: '=>'Office comments: ', 'Maelekezo: '=>'Instructions: ',
+        'Hatua inayofuata: '=>'Next step: ', 'Kiasi cha kulipa kwa malazi: '=>'Accommodation amount due: ',
+        'Deni jingine la malazi: '=>'Other accommodation debt: ', 'Deni: '=>'Outstanding debt: ',
+        'Vifaa vinavyokosekana: '=>'Missing items: ',
+        'Finance imeomba malipo ya deni jingine kabla ya kuidhinisha hatua yake.'=>'Finance requires payment of another outstanding debt before approving its stage.',
+        'Finance imethibitisha huna deni jingine.'=>'Finance has confirmed that you have no other outstanding debt.',
+        'Receipt yako imehakikiwa na malipo yameidhinishwa.'=>'Your receipt has been verified and payment has been approved.',
+        'Fungua My Clearance, rekebisha tatizo, kisha tumia Submit evidence to office kutuma maelezo na ushahidi kwa ofisi hii.'=>'Open My Clearance, complete the corrections, then use Submit evidence to office to send your explanation and evidence to this office.',
+        'Lipa kwa control number iliyotolewa, kisha pakia receipt kwenye My Clearance ili Finance ihakiki.'=>'Pay using the issued control number, then upload the receipt in My Clearance for Finance to verify.',
+        'Fungua Dashboard na uchague Download Clearance Transcript.'=>'Open Dashboard and select Download Clearance Transcript.',
+        'Fungua My Clearance kufuatilia maamuzi ya ofisi zilizobaki.'=>'Open My Clearance to follow decisions from the remaining offices.',
+    ]);
+    return str_replace(['Download Clearance Transcript','clearance transcript','Clearance Transcript'],['Download Student Clearance Certificate','Student Clearance Certificate','Student Clearance Certificate'],$message);
+}
+
+/** Email decisions use English summaries; complete original remarks remain in My Clearance. */
+function notification_email_body(string $title, string $message): string
+{
+    $english = notification_email_message($message);
+    $summaries = [
+        'Clearance stage approved' => "Decision: APPROVED\nAn office has approved this clearance stage. Follow the decisions from the remaining offices in My Clearance.",
+        'Clearance stage rejected' => "Decision: REJECTED\nAn office has rejected this clearance stage. Read the office comments and corrective instructions in My Clearance, complete the corrections, then select Submit evidence to office.",
+        'Finance payment required' => "Decision: PAYMENT REQUIRED\nFinance requires payment of an outstanding debt. Open My Clearance to view the amount, control number and payment instructions, then upload your receipt for verification.",
+        'Clearance completed' => "Status: COMPLETED\nAll 11 offices have approved your clearance. Open Dashboard and select Download Student Clearance Certificate.",
+    ];
+    foreach ($summaries as $event => $summary) {
+        if ($title !== $event && !str_starts_with($title, $event . ' — ')) { continue; }
+        // Context precedes the first blank line; officer-entered text is never copied.
+        $context = [];
+        $firstBlock = preg_split('/\R\h*\R/u', $english, 2)[0];
+        foreach (explode("\n", $firstBlock) as $line) {
+            $line = trim($line);
+            if (preg_match('/^(?:Office: [^\r\n]+|Stage: (?:[1-9]|10|11) \/ 11|Registration number: [A-Za-z0-9\/-]+|Academic cycle: [0-9]{4}\/[0-9]{4})$/D', $line)) {
+                $context[] = $line;
+            }
+        }
+        return ($context ? implode("\n", $context) . "\n\n" : '') . $summary
+            . "\n\nView the complete office response and clearance details in My Clearance:\n"
+            . rtrim(APPLICATION_ORIGIN, '/') . '/student/status.php';
+    }
+    return $english;
+}
+
 function send_notification_email(array $row, array $config): void
 {
     require_once __DIR__ . '/vendor/phpmailer/src/Exception.php';
@@ -39,13 +92,14 @@ function send_notification_email(array $row, array $config): void
     $mail->Timeout = max(1, min(30, (int)$config['timeout']));
     $mail->getSMTPInstance()->Timelimit = $mail->Timeout;
     $mail->CharSet = 'UTF-8';
+    $mail->addCustomHeader('Content-Language', 'en');
     $mail->setFrom($config['from_email'], $config['from_name']);
     $mail->addAddress($row['recipient'], $row['full_name']);
     $mail->Subject = 'IRDP e-Clearance: ' . str_replace(["\r", "\n"], ' ', $row['title']);
     $mail->MessageID = '<irdp-notification-' . $row['notification_id'] . '-' . hash('sha256', APPLICATION_ORIGIN) . '@' . substr(strrchr($config['from_email'], '@'), 1) . '>';
-    $mail->Body = "Habari " . $row['full_name'] . ",\n\n" . $row['message']
-        . "\n\nIngia kwenye mfumo kuona taarifa zaidi:\n" . rtrim(APPLICATION_ORIGIN, '/')
-        . "/student/notifications.php\n\nIRDP e-Clearance\nHuu ni ujumbe wa moja kwa moja kutoka kwenye mfumo.";
+    $mail->Body = "Hello " . $row['full_name'] . ",\n\n" . notification_email_body($row['title'], $row['message'])
+        . "\n\nSign in to view more details:\n" . rtrim(APPLICATION_ORIGIN, '/')
+        . "/student/notifications.php\n\nIRDP e-Clearance\nThis is an automated message from the system.";
     try { $mail->send(); }
     catch (\PHPMailer\PHPMailer\Exception $e) {
         $error = $mail->getSMTPInstance()->getError();

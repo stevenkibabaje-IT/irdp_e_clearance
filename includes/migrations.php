@@ -5,7 +5,7 @@ declare(strict_types=1);
 const RETIRED_FEATURE_TABLES = [
     'officer_availability', 'officer_backup', 'clearance_escalations',
     'emergency_clearances', 'office_supervisors', 'assignment_history',
-    'stage_events', 'stage_appeals', 'app_settings',
+    'stage_events', 'stage_appeals', 'app_settings', 'import_runs',
 ];
 
 /** Remove only unused legacy tables, after checking every candidate before DDL. */
@@ -87,7 +87,6 @@ function migrate_features(PDO $db): void {
     'stage_evidence' => 'id INT AUTO_INCREMENT PRIMARY KEY, stage_id INT NOT NULL, cycle_number INT NOT NULL, uploader_id INT NOT NULL, stored_name VARCHAR(80) NOT NULL UNIQUE, original_name VARCHAR(180) NOT NULL, mime_type VARCHAR(80) NOT NULL, byte_size INT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(stage_id) REFERENCES clearance_stages(id), FOREIGN KEY(uploader_id) REFERENCES users(id)',
     'password_resets' => 'id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, token_hash CHAR(64) NOT NULL UNIQUE, expires_at DATETIME NOT NULL, used_at DATETIME NULL, issued_by INT NULL, identity_reference VARCHAR(255) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(user_id) REFERENCES users(id)',
     'rate_limits' => 'bucket_hash CHAR(64) PRIMARY KEY, window_start DATETIME NOT NULL, attempts INT NOT NULL DEFAULT 0',
-    'import_runs' => 'id INT AUTO_INCREMENT PRIMARY KEY, admin_id INT NOT NULL, created_count INT NOT NULL, skipped_count INT NOT NULL, failed_count INT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(admin_id) REFERENCES users(id)',
     ];
     foreach ($tables as $name => $definition) {
         $db->exec('CREATE TABLE IF NOT EXISTS ' . $name . ' (' . $definition . ') ENGINE=InnoDB');

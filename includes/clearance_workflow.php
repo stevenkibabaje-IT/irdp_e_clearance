@@ -51,7 +51,7 @@ function notify_stage(PDO $pdo, array $stage, string $title, string $message): v
     if ($title !== 'Clearance completed') {
         $title .= ' — '.$office.' (Stage '.$stage['step_number'].')';
     }
-    $context = 'Ofisi: '.$office."\nStage: ".$stage['step_number'].' / 11';
+    $context = 'Office: '.$office."\nStage: ".$stage['step_number'].' / 11';
     if (!empty($stage['registration_number'])) { $context .= "\nRegistration number: ".$stage['registration_number']; }
     if (!empty($stage['academic_year'])) { $context .= "\nAcademic cycle: ".$stage['academic_year']; }
     $message = $context."\n\n".$message;
@@ -64,30 +64,30 @@ function notify_stage(PDO $pdo, array $stage, string $title, string $message): v
 function stage_decision_message(array $stage, string $action, array $details, string $comments, string $instructions): string {
     $office = $stage['office_name'] ?? $stage['title'];
     $message = match ($action) {
-        'APPROVED' => 'Uamuzi: APPROVED' . "\nOfisi ya ".$office.' imeidhinisha hatua hii ya clearance yako.',
-        'REJECTED' => 'Uamuzi: REJECTED' . "\nOfisi ya ".$office.' imekataa hatua hii. Rekebisha yaliyoelekezwa kabla ya kutuma tena.',
-        'PAYMENT_REQUESTED' => 'Uamuzi: PAYMENT REQUIRED' . "\nFinance imeomba malipo ya deni jingine kabla ya kuidhinisha hatua yake.",
-        'COMPLETED' => 'Hali: COMPLETED' . "\nOfisi ya ".$office.' imeidhinisha hatua ya mwisho iliyobaki. Ofisi zote 11 zimeidhinisha clearance yako.',
+        'APPROVED' => 'Decision: APPROVED' . "\nThe ".$office.' office has approved this clearance stage.',
+        'REJECTED' => 'Decision: REJECTED' . "\nThe ".$office.' office has rejected this stage. Complete the requested corrections before resubmitting.',
+        'PAYMENT_REQUESTED' => 'Decision: PAYMENT REQUIRED' . "\nFinance requires payment of another outstanding debt before approving its stage.",
+        'COMPLETED' => 'Status: COMPLETED' . "\nThe ".$office.' office has approved the final remaining stage. All 11 offices have approved your clearance.',
         default => throw new LogicException('Unknown stage notification decision.'),
     };
-    if ($comments !== '') { $message .= "\n\nMaelezo ya ofisi: ".$comments; }
-    foreach (['amount'=>'Deni','so_has_to_pay'=>'Kiasi cha kulipa kwa malazi','nothing_amount'=>'Deni jingine la malazi'] as $key=>$label) {
+    if ($comments !== '') { $message .= "\n\nOffice comments: ".$comments; }
+    foreach (['amount'=>'Outstanding debt','so_has_to_pay'=>'Accommodation amount due','nothing_amount'=>'Other accommodation debt'] as $key=>$label) {
         if (isset($details[$key]) && (float)$details[$key] > 0) { $message .= "\n".$label.': TSh '.number_format((float)$details[$key],2); }
     }
     $missing = [];
     foreach (['key'=>'Key','mattress'=>'Mattress','curtains'=>'Curtains','broom'=>'Broom','bucket'=>'Bucket'] as $key=>$label) {
         if (isset($details[$key]) && $details[$key] !== 'AVAILABLE') { $missing[] = $label; }
     }
-    if ($missing) { $message .= "\nVifaa vinavyokosekana: ".implode(', ',$missing); }
+    if ($missing) { $message .= "\nMissing items: ".implode(', ',$missing); }
     if (!empty($details['control_number'])) { $message .= "\nControl number: ".$details['control_number']; }
-    if (($details['finance_mode'] ?? '') === 'NO_OTHER_DEBT') { $message .= "\nFinance imethibitisha huna deni jingine."; }
-    if (($details['payment_status'] ?? '') === 'APPROVED') { $message .= "\nReceipt yako imehakikiwa na malipo yameidhinishwa."; }
-    if ($instructions !== '') { $message .= "\n\nMaelekezo: ".$instructions; }
-    $message .= "\n\nHatua inayofuata: ".match ($action) {
-        'REJECTED' => 'Fungua My Clearance, rekebisha tatizo, kisha tumia Submit evidence to office kutuma maelezo na ushahidi kwa ofisi hii.',
-        'PAYMENT_REQUESTED' => 'Lipa kwa control number iliyotolewa, kisha pakia receipt kwenye My Clearance ili Finance ihakiki.',
-        'COMPLETED' => 'Fungua Dashboard na uchague Download Clearance Transcript.',
-        default => 'Fungua My Clearance kufuatilia maamuzi ya ofisi zilizobaki.',
+    if (($details['finance_mode'] ?? '') === 'NO_OTHER_DEBT') { $message .= "\nFinance has confirmed that you have no other outstanding debt."; }
+    if (($details['payment_status'] ?? '') === 'APPROVED') { $message .= "\nYour receipt has been verified and payment has been approved."; }
+    if ($instructions !== '') { $message .= "\n\nInstructions: ".$instructions; }
+    $message .= "\n\nNext step: ".match ($action) {
+        'REJECTED' => 'Open My Clearance, complete the corrections, then use Submit evidence to office to send your explanation and evidence to this office.',
+        'PAYMENT_REQUESTED' => 'Pay using the issued control number, then upload the receipt in My Clearance for Finance to verify.',
+        'COMPLETED' => 'Open Dashboard and select Download Student Clearance Certificate.',
+        default => 'Open My Clearance to follow decisions from the remaining offices.',
     };
     return $message;
 }
@@ -143,8 +143,8 @@ function resubmit_stage(PDO $pdo, int $stageId, int $studentUser, string $respon
         route_clearance_stage($pdo,(int)$stage['clearance_request_id'],$stageId,$studentUser);
         $stage=stage_context($pdo,$stageId);
         notify_stage($pdo,$stage,$isFinance ? 'Payment receipt submitted' : 'Clearance stage resubmitted',
-            $isFinance ? 'Receipt ya malipo kwa control number '.$issuedNumber.' imewasilishwa. Finance itahakiki malipo kabla ya kuidhinisha hatua hii.'
-                : 'Marekebisho na ushahidi vimewasilishwa kwa ofisi hii kwa review cycle '.$cycle.'. Ofisi itahakiki kabla ya kutoa uamuzi mpya.');
+            $isFinance ? 'A payment receipt for control number '.$issuedNumber.' has been submitted. Finance will verify payment before approving this stage.'
+                : 'Corrections and evidence have been submitted to this office for review cycle '.$cycle.'. The office will review the submission before making a new decision.');
         audit($pdo,'STAGE_RESUBMITTED',$studentUser,(int)$stage['clearance_request_id'],'Stage '.$stageId.' cycle '.$cycle.'; evidence files '.count($stored));
         $pdo->commit();
     } catch(Throwable $e) {
@@ -166,15 +166,24 @@ function refresh_clearance_request_status(PDO $pdo, int $requestId): void {
 }
 function liabilities_clear(array $details, int $step): bool {
     if ($step === 11) { return finance_details_clear($details); }
+    // Historical Dispensary approvals used an amount instead of a decision.
+    // Preserve their original zero-debt requirement without rewriting history.
+    if ($step===6 && !array_key_exists('decision',$details) && array_key_exists('amount',$details)) {
+        try { $legacy=validate_review_details([['amount','Legacy amount due','number']],$details); }
+        catch (ValidationException $error) { return false; }
+        return (float)$legacy['amount']===0.0;
+    }
+    $recorded=$details;
     try { $details=validate_review_details(review_fields($step), $details); }
     catch (ValidationException $e) { return false; }
     if(isset($details['decision']) && $details['decision']!=='CLEARED') {
         return false;
     }
     foreach(['amount','so_has_to_pay','nothing_amount'] as $field) {
-        if(isset($details[$field]) && (float)$details[$field]>0) {
-            return false;
-        }
+        if(!array_key_exists($field,$recorded)){continue;}
+        try { $value=clearance_amount($recorded[$field],$field,'Outstanding liability'); }
+        catch (ValidationException $error) { return false; }
+        if ((float)$value>0) { return false; }
     }
     if($step===8) {
         foreach(['key','mattress','curtains','broom','bucket'] as $field) {
@@ -187,13 +196,35 @@ function liabilities_clear(array $details, int $step): bool {
 }
 function review_fields(int $step): array {
     return match($step) {
-        1,2,3,4,5,6 => [['amount','Amount due (Tsh)','number']],
-        7 => [['decision','Departmental decision','decision'],['amount','Amount due (Tsh)','number']],
+        1 => [['amount','Library outstanding liability (TSh)','number']],
+        2 => [['amount','Sports equipment liability (TSh)','number']],
+        3 => [['amount','Computer lab equipment liability (TSh)','number']],
+        4 => [['amount','Supplies outstanding liability (TSh)','number']],
+        5 => [['amount','Transport outstanding liability (TSh)','number']],
+        6 => [['decision','Dispensary clearance decision','decision']],
+        7 => [['decision','Departmental decision','decision']],
         8 => [['key','Key','asset'],['mattress','Mattress','asset'],['curtains','Curtains','asset'],['broom','Broom','asset'],['bucket','Bucket','asset'],['so_has_to_pay','Amount to pay (Tsh)','number'],['nothing_amount','Other amount due (Tsh)','number']],
         9,10 => [['decision','Clearance decision','decision']],
         11 => [['control_number','Control number','control_number']],
         default => throw new RuntimeException('Unsupported workflow stage.'),
     } ;
+}
+
+function office_review_guidance(int $step): string {
+    return match($step) {
+        1=>'Check library returns and record any outstanding book or library liability. Payments are handled by Finance.',
+        2=>'Check returned sports equipment and record any unresolved equipment liability. Payments are handled by Finance.',
+        3=>'Check lab equipment and issued accessories. Record unresolved equipment liability; payments are handled by Finance.',
+        4=>'Check institutional supplies or property issued to the student. Record only unresolved supplies liability.',
+        5=>'Check outstanding transport obligations. Record only transport-related liability; payments are handled by Finance.',
+        6=>'Record the Dispensary clearance decision and any necessary clearance instructions. No payment amount or control number is required.',
+        7=>'Check departmental academic and administrative requirements, then record the decision. No payment amount or control number is required.',
+        8=>'Check accommodation property returns and any outstanding accommodation liability. Payments are handled by Finance.',
+        9=>'Check student affairs requirements and record the clearance decision.',
+        10=>'Check registration and admissions records, then record the clearance decision.',
+        11=>'Review other outstanding debts. Issue a control number only when another payment is needed and verify its receipt before approval.',
+        default=>throw new RuntimeException('Unsupported workflow stage.'),
+    };
 }
 function certificate_release_allowed(PDO $pdo,int $requestId): bool {
     $s=$pdo->prepare('SELECT cs.id,cs.review_cycle,cs.status,cs.details_json,s.user_id AS student_user_id,ws.step_number FROM clearance_stages cs INNER JOIN workflow_steps ws ON ws.id=cs.workflow_step_id INNER JOIN clearance_requests cr ON cr.id=cs.clearance_request_id INNER JOIN students s ON s.id=cr.student_id WHERE cs.clearance_request_id=? ORDER BY ws.step_number');
@@ -235,6 +266,10 @@ function process_stage_decision(PDO $pdo,int $stageId,int $reviewer,array $input
         }
         $isFinance = (int)$stage['step_number'] === 11;
         if ($isFinance) {
+            // stage_context holds the request lock, serializing all office decisions.
+            if (!finance_final_approval_ready($pdo, (int)$stage['clearance_request_id'])) {
+                throw new RuntimeException('Finance is the final approver. Finance clearance duties are locked until all other 10 offices approve. Entry-fee payment verification remains available under Clearance entry fees.');
+            }
             if ($action === 'REJECTED') {
                 throw new RuntimeException('Finance uses Send control number and Approve; rejection is not available.');
             }

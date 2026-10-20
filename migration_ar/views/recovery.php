@@ -1,0 +1,6 @@
+<?php
+admin_only($user);$status=choice_input($_GET['status']??'OPEN',['OPEN','PENDING','ISSUED','COMPLETED','REJECTED','ALL'],'status');$pageNumber=max(1,(int)($_GET['p']??1));$history=ai_recovery_history($p,(int)$user['id']);$history=array_values(array_filter($history,fn($r)=>$status==='ALL'||($status==='OPEN'?in_array($r['status'],['PENDING','ISSUED'],true):$r['status']===$status)));
+echo '<p>';foreach(['OPEN','PENDING','ISSUED','COMPLETED','REJECTED','ALL'] as $filter){echo '<a href="?page=recovery&status='.$filter.'">'.$filter.'</a> ';}echo '</p>';
+table(array_slice($history,($pageNumber-1)*50,50),['recovery_id'=>'Request ID','user_id'=>'User ID','username'=>'Username','full_name'=>'Name','status'=>'Status','identity'=>'Identity reference','requested_at'=>'Requested','reason'=>'Decision reason']);
+echo '<p>'.count($history).' requests · Page '.$pageNumber.' · <a href="?page=recovery&status='.h($status).'&p='.max(1,$pageNumber-1).'">Previous</a> · <a href="?page=recovery&status='.h($status).'&p='.($pageNumber+1).'">Next</a></p>';
+form_start('recovery_decide');field('id','User ID for the current pending request','number');select_field('decision','Decision',['ISSUE'=>'Issue / reissue reset code','REJECT'=>'Reject']);field('reason','Identity verification or rejection reason');button('Save recovery decision');
