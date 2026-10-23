@@ -115,8 +115,10 @@ function admin_password_recovery(PDO $pdo,array $input,int $adminId): ?string {
     if(!$userId) {throw new RuntimeException('Account or recovery request not found.');}
     $pdo->beginTransaction();
     try {
-        $s=$pdo->prepare('SELECT id,email,active FROM users WHERE id=? FOR UPDATE');$s->execute([$userId]);$user=$s->fetch();
+        $s=$pdo->prepare('SELECT u.id,u.email,u.active,r.name AS role_name FROM users u INNER JOIN roles r ON r.id=u.role_id WHERE u.id=? FOR UPDATE');$s->execute([$userId]);$user=$s->fetch();
         if(!$user) {throw new RuntimeException('Account not found.');}
+        if($user['role_name']!=='OFFICER') {throw new RuntimeException('Admin-assisted recovery is available only for officer accounts.');}
+        if($browserApproval) {throw new RuntimeException('Verify the officer identity and issue a private reset code.');}
         $s=$pdo->prepare($requestId
             ?'SELECT * FROM password_reset_requests WHERE id=? AND user_id=? FOR UPDATE'
             :'SELECT * FROM password_reset_requests WHERE user_id=? AND status IN ("PENDING","ISSUED") ORDER BY id DESC LIMIT 1 FOR UPDATE');
@@ -155,6 +157,32 @@ function admin_password_recovery(PDO $pdo,array $input,int $adminId): ?string {
         throw $e;
     }
 }
+function admin_reset_officer_password(PDO $pdo, array $input, int $adminId): string {
+    $admin=user_record($pdo,$adminId);
+    if(!$admin || !(int)$admin['active'] || $admin['role_name']!=='ADMIN') {
+        throw new RuntimeException('Administrator access required.');
+    }
+    $username=text_input($input,'username',100);
+    $password='Officer!'.bin2hex(random_bytes(6)).'A7';
+    $pdo->beginTransaction();
+    try {
+        $s=$pdo->prepare('SELECT u.id,u.active,r.name AS role_name FROM users u INNER JOIN roles r ON r.id=u.role_id WHERE u.username=? FOR UPDATE');
+        $s->execute([$username]);$user=$s->fetch();
+        if(!$user || $user['role_name']!=='OFFICER' || !(int)$user['active']) {
+            throw new RuntimeException('Choose an active officer account.');
+        }
+        $pdo->prepare('UPDATE users SET password_hash=?,auth_version=auth_version+1,force_password_change=1 WHERE id=?')->execute([hash_new_password($password),$user['id']]);
+        $pdo->prepare('UPDATE password_resets SET used_at=NOW() WHERE user_id=? AND used_at IS NULL')->execute([$user['id']]);
+        $pdo->prepare('UPDATE password_reset_requests SET status="COMPLETED",handled_by=?,handled_at=NOW(),completed_at=NOW() WHERE user_id=? AND status IN ("PENDING","ISSUED")')->execute([$adminId,$user['id']]);
+        $pdo->prepare('INSERT INTO password_reset_requests(user_id,status,handled_by,handled_at,completed_at,identity_reference) VALUES (?,"COMPLETED",?,NOW(),NOW(),?)')->execute([$user['id'],$adminId,'Administrator issued a temporary officer password; password change required at login.']);
+        audit($pdo,'OFFICER_PASSWORD_RESET',$adminId,null,'Temporary password issued for officer account #'.$user['id'].'; existing sessions revoked.');
+        $pdo->commit();return $password;
+    } catch(Throwable $e) {
+        if($pdo->inTransaction()){$pdo->rollBack();}
+        throw $e;
+    }
+}
+
 function reset_password(PDO $pdo,string $token,mixed $password,mixed $confirmation): void {
     rate_limit($pdo,'reset-attempt',request_ip(),10,30);
     if(!preg_match('/^[a-f0-9]{64}$/D',$token)) {

@@ -37,10 +37,11 @@ try {
     $users=$pdo->query('SELECT u.*,s.id AS student_id,r.name AS role_name FROM users u INNER JOIN roles r ON r.id=u.role_id INNER JOIN students s ON s.user_id=u.id ORDER BY s.id')->fetchAll();
     foreach($users as $index=>&$user){$user['email']='student'.$index.'@example.test';$pdo->prepare('UPDATE users SET email=? WHERE id=?')->execute([$user['email'],$user['id']]);}unset($user);
     $accountsBefore=$pdo->query('SELECT * FROM users ORDER BY id')->fetchAll();
+    $tablesBefore=$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
     $pdo->exec('DROP TABLE student_password_otps');
     $pdo->prepare('DELETE FROM schema_migrations WHERE version=?')->execute([APPLICATION_SCHEMA_VERSION]);
     ensure_database_ready($pdo,false);
-    otp_check(count($pdo->query('SHOW TABLES')->fetchAll())===30 && $pdo->query('SELECT * FROM users ORDER BY id')->fetchAll()===$accountsBefore,'Additive OTP upgrade changed accounts or failed to add its table.');
+    otp_check($pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN)===$tablesBefore && $pdo->query('SELECT * FROM users ORDER BY id')->fetchAll()===$accountsBefore,'Additive OTP upgrade changed accounts or failed to restore the original table set.');
     ensure_database_ready($pdo,false);
     echo "PASS: additive OTP migration preserves accounts and is repeatable\n";
     $codes=[];

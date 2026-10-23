@@ -26,7 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         verify_csrf();
         $username = text_input($_POST, 'username', 100);
         $password = existing_password_input($_POST['password'] ?? null);
-        rate_limit($pdo, 'login', request_ip(), 20, 15);
 
         if ($username === '' || $password === '') {
             throw new RuntimeException('Enter your username and password.');

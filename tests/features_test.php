@@ -8,7 +8,7 @@ function check(bool $condition,string $message): void {if(!$condition){throw new
 function check_retired_tables_absent(PDO $pdo): void {
     $tables=$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
     check(!array_intersect(RETIRED_FEATURE_TABLES,$tables),'A retired feature table was recreated.');
-    check(count($tables)===30,'Expected exactly 30 application tables.');
+    check(count($tables)===28,'Expected exactly 28 application tables.');
 }
 function rejected(callable $operation,string $message): void {try{$operation();}catch(RuntimeException $e){return;}throw new RuntimeException($message);}
 function fixture_stage(PDO $pdo,int $student,int $office,int $step,int $reviewer,string $age='NOW()'): array
@@ -66,7 +66,7 @@ try{
     }
     $pdo->exec('INSERT INTO stage_appeals(id) VALUES (1)');
     rejected(fn()=>migrate_retired_feature_tables($pdo),'Nonempty legacy history was silently deleted.');
-    check(count($pdo->query('SHOW TABLES')->fetchAll())===39,'Cleanup partially removed tables before preflight completed.');
+    check(count($pdo->query('SHOW TABLES')->fetchAll())===28+count(RETIRED_FEATURE_TABLES),'Cleanup partially removed tables before preflight completed.');
     $pdo->exec('DELETE FROM stage_appeals');
     $pdo->exec("INSERT INTO app_settings(name,value) VALUES ('custom_setting','preserve')");
     rejected(fn()=>migrate_retired_feature_tables($pdo),'Unknown settings were silently deleted.');
@@ -169,10 +169,10 @@ try{
         $number=(int)$workflow['step_number'];$assigned=find_office_reviewer($pdo,(int)$workflow['office_id'],$number===7?$department:0);check($assigned!==null,'Full workflow fixture has no officer.');
         $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status,actionable_at) VALUES (?,?,?,?,?,?,?)')->execute([$fullRequest,$workflow['id'],$workflow['office_id'],$assigned,$assigned,'PENDING',date('Y-m-d H:i:s')]);$fullStages[$number]=(int)$pdo->lastInsertId();ensure_review_cycle($pdo,$fullStages[$number]);
     }
-    // Finance reviews first while another office requires correction; Library finishes last.
+    // Finance must finish after the other ten offices have approved.
     $sports=stage_context($pdo,$fullStages[2]);
     process_stage_decision($pdo,$fullStages[2],(int)$sports['assigned_officer_id'],['action'=>'REJECTED','review_cycle'=>'1','amount'=>'20000','comments'=>'Fictional unresolved office finding','corrective_instructions'=>'Resolve with the office'],review_fields(2));
-    foreach([11,10,9,8,7,6,5,4,3,2,1] as $number){
+    foreach([10,9,8,7,6,5,4,3,2,1,11] as $number){
         $id=$fullStages[$number];
         $state=stage_context($pdo,$id);$fields=review_fields($number);$input=['action'=>'APPROVED','comments'=>'Fictional review','corrective_instructions'=>'','review_cycle'=>(string)$state['review_cycle']];
         foreach($fields as [$key,$label,$type]){$input[$key]=$type==='number'?'0':($type==='asset'?'AVAILABLE':'CLEARED');}
@@ -247,7 +247,7 @@ try{
                 }
                 [$code]=http_call('/student/resubmit.php?stage='.$id,$upload+['evidence[0]'=>new CURLFile($receipt,'application/pdf','receipt.pdf')],$financeStudentCookie,true);
                 foreach($pdo->query('SELECT stored_name FROM stage_evidence WHERE stage_id='.$id) as $stored){$files[]=private_path('evidence',$stored['stored_name']);}
-                check($code===302&&stage_context($pdo,$id)['status']==='PENDING'&&stage_context($pdo,$id)['request_status']==='PAUSED','Receipt submission failed or cleared another office rejection.');
+                check($code===302&&stage_context($pdo,$id)['status']==='PENDING'&&stage_context($pdo,$id)['request_status']==='IN_PROGRESS','Receipt submission failed or completed clearance before Finance approval.');
                 $payment=finance_payment_details(stage_context($pdo,$id));
                 check($payment['payment_status']==='AWAITING_REVIEW'&&$payment['receipt_control_number']===$issued,'Receipt not bound to control number.');
                 check(!certificate_release_allowed($pdo,$fullRequest),'Receipt upload released certificate.');
@@ -280,15 +280,15 @@ try{
                     check($code===302&&stage_context($pdo,$id)['status']==='PENDING'&&!finance_receipt_available($pdo,stage_context($pdo,$id)),'Updated control number failed to invalidate receipt.');
                 }else{
                     [$code]=http_call('/officer/review.php?stage='.$id,$decision,$financeCookie,true);
-                    check($code===302&&stage_context($pdo,$id)['status']==='APPROVED'&&stage_context($pdo,$id)['request_status']==='PAUSED','Finance could not approve independently or cleared another office rejection.');
-                    check(stage_context($pdo,$fullStages[1])['status']==='PENDING'&&!certificate_release_allowed($pdo,$fullRequest)
-                        &&transcript_for_student($pdo,$student,$fullRequest)===null,'Early Finance approval released the transcript before all offices approved.');
+                    check($code===302&&stage_context($pdo,$id)['status']==='APPROVED'&&stage_context($pdo,$id)['request_status']==='COMPLETED','Final Finance payment approval did not complete clearance.');
+                    check(stage_context($pdo,$fullStages[1])['status']==='APPROVED'&&certificate_release_allowed($pdo,$fullRequest)
+                        &&transcript_for_student($pdo,$student,$fullRequest)!==null,'Final Finance approval did not release the certificate after all offices approved.');
                 }
             }
             check(finance_details_clear(finance_payment_details(stage_context($pdo,$id))),'Approved payment did not clear finance.');
             check((int)$pdo->query('SELECT COUNT(*) FROM stage_evidence WHERE stage_id='.$id)->fetchColumn()===3,'Previous payment history lost.');
             $pdo->prepare('UPDATE clearance_period SET cycle_id=? WHERE id=1')->execute([$periodBeforeFinance]);
-            echo "PASS: independent early Finance review, mandatory/private receipts, owner/control/cycle checks and no premature completion\n";
+            echo "PASS: final Finance review, mandatory/private receipts, owner/control/cycle checks and completion after all offices approve\n";
             continue;
         }
         if(in_array($number,[2,8],true)) {
@@ -299,7 +299,7 @@ try{
             $otherOfficeBefore=stage_context($pdo,$fullStages[1]);
             if($state['status']!=='REJECTED'){process_stage_decision($pdo,$id,(int)$state['assigned_officer_id'],$reject,$fields);}
             check(stage_context($pdo,$fullStages[1])===$otherOfficeBefore,'Rejection changed another office stage.');
-            check(stage_context($pdo,$fullStages[11])['status']==='APPROVED','Rejection undid the independent Finance approval.');
+            check(stage_context($pdo,$fullStages[10])['status']==='APPROVED'&&stage_context($pdo,$fullStages[11])['status']==='PENDING','Rejection changed an independent approval or unlocked Finance early.');
             resubmit_stage($pdo,$id,$studentUser,'Correction verified with the office; no attachment needed.',[]);
             if($number===8){check(stage_context($pdo,$id)['request_status']==='PAUSED'&&stage_context($pdo,$fullStages[2])['status']==='REJECTED','Resubmitting one office cleared another rejected office.');}
             $input=array_replace($reject,['action'=>'APPROVED_CORRECTION','review_cycle'=>'2']);
@@ -316,11 +316,11 @@ try{
         }else{process_stage_decision($pdo,$id,(int)$state['assigned_officer_id'],$input,$fields);}
         check(liabilities_clear(json_decode(stage_context($pdo,$id)['details_json'],true),$number),'Verified correction retained unresolved liabilities or missing items.');
         rejected(fn()=>process_stage_decision($pdo,$id,(int)$state['assigned_officer_id'],$input,$fields),'Duplicate decision accepted.');
-        if($number!==1){check(stage_context($pdo,$id)['request_status']!=='COMPLETED'&&transcript_for_student($pdo,$student,$fullRequest)===null,'Clearance completed before the final office approved.');}
+        if($number!==11){check(stage_context($pdo,$id)['request_status']!=='COMPLETED'&&transcript_for_student($pdo,$student,$fullRequest)===null,'Clearance completed before the final office approved.');}
     }
-    check(stage_context($pdo,$fullStages[1])['request_status']==='COMPLETED','The last non-Finance office did not complete clearance.');
+    check(stage_context($pdo,$fullStages[11])['request_status']==='COMPLETED','Final Finance approval did not complete clearance.');
     check(certificate_release_allowed($pdo,$fullRequest),'Complete liability-free workflow did not pass release.');check((int)$pdo->query('SELECT COUNT(*) FROM transcripts WHERE certificate_number IS NOT NULL AND clearance_request_id='.$fullRequest)->fetchColumn()===1,'Certificate not issued exactly once.');
-    echo "PASS: all 11 independent office decisions, multiple rejections/resubmissions and final non-Finance completion\n";
+    echo "PASS: all 11 independent office decisions, multiple rejections/resubmissions and final Finance completion\n";
     $transcript=transcript_for_student($pdo,$student,$fullRequest);
     check($transcript&&$transcript['result_source']==='CLEARANCE','Final clearance did not generate its clearance transcript.');
     $clearanceSnapshot=json_decode($transcript['snapshot_json'],true,512,JSON_THROW_ON_ERROR);
@@ -346,9 +346,9 @@ try{
     $pdo->exec('UPDATE clearance_period SET cycle_id=(SELECT id FROM academic_cycles WHERE label="2027/2028") WHERE id=1');
     [$code,$completedDashboard]=http_call('/student/dashboard.php',[],$cookie);
     check($code===200&&str_contains($completedDashboard,'transcripts/download.php')&&!str_contains($completedDashboard,'Academic Results'),'Completed student lost transcript access or still sees Academic Results.');
-    check(!str_contains($completedDashboard,'Certificate')&&!str_contains($completedDashboard,'certificates/certificate.php'),'Completed dashboard still exposes View Certificate.');
+    check(str_contains($completedDashboard,'Student Clearance Certificate')&&!str_contains($completedDashboard,'certificates/certificate.php'),'Completed dashboard lost the certificate label or exposes the retired view.');
     [$code,$completedStatus]=http_call('/student/status.php',[],$cookie);
-    check($code===200&&str_contains($completedStatus,'Your clearance is complete.')&&!str_contains($completedStatus,'Certificate')&&!str_contains($completedStatus,'certificates/certificate.php'),'Completed status lost its completion message or still exposes View Certificate.');
+    check($code===200&&str_contains($completedStatus,'Your clearance is complete.')&&str_contains($completedStatus,'Student Clearance Certificate')&&!str_contains($completedStatus,'certificates/certificate.php'),'Completed status lost its completion message or certificate label, or exposes the retired view.');
     foreach(['','?id='.$fullRequest,'?id=bad'] as $query){
         [$code,$removedCertificate]=http_call('/certificates/certificate.php'.$query,[],$cookie);
         check($code===302&&!str_contains($removedCertificate,'STUDENT CLEARANCE CERTIFICATE'),'Removed certificate view still renders a certificate.');
@@ -364,7 +364,7 @@ try{
     [$code,$sameTranscriptPdf]=http_call('/transcripts/download.php',[],$cookie);
     check($code===200&&str_starts_with($sameTranscriptPdf,'%PDF-')&&str_contains($sameTranscriptPdf,'OFFICE APPROVALS')&&transcript_for_student($pdo,$student,$fullRequest)['snapshot_json']===$transcript['snapshot_json'],'Repeated download changed the clearance snapshot.');
     [$code,$verification]=http_call('/transcripts/verify.php?token='.$transcript['verification_token']);
-    check($code===200&&str_contains($verification,'DOCUMENT VERIFIED')&&str_contains($verification,'Clearance transcript')&&str_contains($verification,'Approved offices')&&!str_contains($verification,'fictional marks'),'Clearance transcript verification failed.');
+    check($code===200&&str_contains($verification,'DOCUMENT VERIFIED')&&str_contains($verification,'Student Clearance Certificate')&&str_contains($verification,'Approved offices')&&!str_contains($verification,'fictional marks'),'Clearance transcript verification failed.');
     [$code,$invalidVerification]=http_call('/transcripts/verify.php?token=invalid');
     check($code===200&&str_contains($invalidVerification,'DOCUMENT INVALID'),'Unknown transcript token was accepted.');
     [$code]=http_call('/student/results.php',[],$cookie);check($code===302,'Removed student results route is still active.');
@@ -647,37 +647,33 @@ try{
     check($code===200&&str_contains($registrationOnly,'email-error')&&(int)$pdo->query('SELECT COUNT(*) FROM password_reset_requests')->fetchColumn()===$requestCount,'A registration number bypassed student email recovery.');
     [$code]=http_call('/admin/recovery.php',[],$officerCookie);check($code===403,'Officer accessed reset requests.');
     rejected(fn()=>admin_password_recovery($pdo,['action'=>'issue','username'=>'IRDP/ODICT/MA25/0001','identity_reference'=>'Fictional check','identity_checked'=>'1'],$primary),'Officer helper issued a credential.');
+    // Current Admin recovery issues a one-time temporary officer password; students use email OTP.
+    rejected(fn()=>admin_reset_officer_password($pdo,['username'=>'TRANS001'],$primary),'Officer helper reset another officer.');
+    rejected(fn()=>admin_reset_officer_password($pdo,['username'=>'IRDP/ODICT/MA25/0001'],$admin),'Administrator reset a student through officer recovery.');
+    $officerBefore=user_record($pdo,$ids['TRANS001']);
     [$code,$recoveryPage]=http_call('/admin/recovery.php',[],$adminCookie);
-    [$code,$unverified]=http_call('/admin/recovery.php',['csrf_token'=>token_from($recoveryPage),'username'=>'IRDP/ODICT/MA25/0001','action'=>'issue','identity_reference'=>'Fictional check'],$adminCookie,true);
-    check($code===200&&str_contains($unverified,'Verify institutional identity'),'Admin issued a code without identity verification.');
-    [$code,$issued]=http_call('/admin/recovery.php',['csrf_token'=>token_from($unverified),'username'=>'IRDP/ODICT/MA25/0001','action'=>'issue','identity_reference'=>'Fictional verified identity','identity_checked'=>'1'],$adminCookie,true);
-    check($code===200&&preg_match('/id="reset-code"[^>]*>([a-f0-9]{64})<\/code>/',$issued,$match)===1,'Identity-checked Admin recovery code missing.');$resetCode=$match[1];
-    $recovery=$pdo->query('SELECT * FROM password_reset_requests WHERE user_id='.$studentUser.' ORDER BY id DESC LIMIT 1')->fetch();
-    $record=$pdo->query('SELECT pr.*,p.user_id AS token_user,p.token_hash FROM password_reset_requests pr INNER JOIN password_resets p ON p.id=pr.reset_id WHERE pr.id='.(int)$recovery['id'])->fetch();
-    check($record['status']==='ISSUED'&&(int)$record['token_user']===$studentUser&&$record['token_hash']===hash('sha256',$resetCode),'Issued code linked to wrong account or stored in plaintext.');
-    [$code,$issuedAgain]=http_call('/admin/recovery.php?request='.$recovery['id'],[],$adminCookie);check(!str_contains($issuedAgain,$resetCode),'Code redisplayed after issuance.');
-    [$code,$replacement]=http_call('/admin/recovery.php',['csrf_token'=>token_from($issuedAgain),'request_id'=>(string)$recovery['id'],'action'=>'issue','identity_reference'=>'Fictional repeated ID check','identity_checked'=>'1'],$adminCookie,true);
-    check(preg_match('/id="reset-code"[^>]*>([a-f0-9]{64})<\/code>/',$replacement,$match)===1,'Replacement code missing.');$replacementCode=$match[1];
-    [$code,$resetPage]=http_call('/auth/reset.php?manual=1',[],$recoveryCookie);
-    [$code,$invalid]=http_call('/auth/reset.php?manual=1',['csrf_token'=>token_from($resetPage),'credential'=>$resetCode,'password'=>'Birch meadow compass 74','confirm_password'=>'Birch meadow compass 74'],$recoveryCookie,true);
-    check($code===200&&str_contains($invalid,'Invalid or expired reset credential'),'Replaced reset code accepted.');
-    [$code,$mismatch]=http_call('/auth/reset.php?manual=1',['csrf_token'=>token_from($invalid),'credential'=>$replacementCode,'password'=>'Birch meadow compass 74','confirm_password'=>'Wrong123'],$recoveryCookie,true);
-    check(str_contains($mismatch,'Password confirmation must match')&&$pdo->query('SELECT status FROM password_reset_requests WHERE id='.(int)$recovery['id'])->fetchColumn()==='ISSUED','Mismatched confirmation completed request.');
-    [$code,$resetResult]=http_call('/auth/reset.php?manual=1',['csrf_token'=>token_from($mismatch),'credential'=>$replacementCode,'password'=>'Birch meadow compass 74','confirm_password'=>'Birch meadow compass 74'],$recoveryCookie,true);
-    check($code===200&&str_contains($resetResult,'Password updated')&&$pdo->query('SELECT status FROM password_reset_requests WHERE id='.(int)$recovery['id'])->fetchColumn()==='COMPLETED','Successful reset did not complete the support request.');
-    [$code]=http_call('/student/dashboard.php',[],$cookie);check($code===302,'Old student session survived password reset.');
-    [$code,$loginPage]=http_call('/auth/login.php',[],$recoveryCookie);
-    [$code,$oldLogin]=http_call('/auth/login.php',['csrf_token'=>token_from($loginPage),'username'=>'IRDP/ODICT/MA25/0001','password'=>'Cedar ocean lantern 91'],$recoveryCookie,true);check($code===200&&str_contains($oldLogin,'Invalid username or password'),'Old password still works.');
-    test_login('IRDP/ODICT/MA25/0001','Birch meadow compass 74',$recoveryCookie);
-    [$code,$completedPage]=http_call('/admin/recovery.php?status=COMPLETED',[],$adminCookie);check($code===200&&str_contains($completedPage,'IRDP/ODICT/MA25/0001')&&str_contains($completedPage,'Completed'),'Admin cannot see completed requests.');
-    rejected(fn()=>admin_password_recovery($pdo,['action'=>'issue','request_id'=>(string)$recovery['id'],'identity_reference'=>'Closed request','identity_checked'=>'1'],$admin),'Completed request reopened by stale action.');
-    $rejectCode=admin_password_recovery($pdo,['action'=>'issue','username'=>'IRDP/BTCRP/MA25/0002','identity_reference'=>'Fictional ID check','identity_checked'=>'1'],$admin);
-    $rejectedRequest=(int)$pdo->query('SELECT id FROM password_reset_requests WHERE user_id='.$ids['IRDP/BTCRP/MA25/0002'].' ORDER BY id DESC LIMIT 1')->fetchColumn();
-    [$code,$rejectPage]=http_call('/admin/recovery.php?request='.$rejectedRequest,[],$adminCookie);
-    [$code]=http_call('/admin/recovery.php',['csrf_token'=>token_from($rejectPage),'request_id'=>(string)$rejectedRequest,'action'=>'reject','decision_reason'=>'Fictional identity verification failed'],$adminCookie,true);
-    check($code===302&&$pdo->query('SELECT status FROM password_reset_requests WHERE id='.$rejectedRequest)->fetchColumn()==='REJECTED','Admin rejection did not persist.');
-    rejected(fn()=>reset_password($pdo,$rejectCode,'Birch meadow compass 74','Birch meadow compass 74'),'Rejected request credential remained valid.');
-    echo "PASS: email-only public recovery, verified Admin support authorization, code replacement/rejection, confirmation, completion and revoked sessions\n";
+    [$code]=http_call('/admin/recovery.php',['action'=>'reset','username'=>'TRANS001'],$adminCookie,true);
+    check($code===419&&user_record($pdo,$ids['TRANS001'])['password_hash']===$officerBefore['password_hash'],'Officer reset accepted a missing CSRF token or changed the password.');
+    [$code,$recoveryPage]=http_call('/admin/recovery.php',[],$adminCookie);
+    [$code]=http_call('/admin/recovery.php',['csrf_token'=>token_from($recoveryPage),'username'=>'TRANS001','action'=>'reset'],$adminCookie,true);
+    check($code===302,'Admin officer password reset did not redirect.');
+    [$code,$issued]=http_call('/admin/recovery.php?status=COMPLETED',[],$adminCookie);
+    check($code===200&&preg_match('/id="temporary-password"[^>]*>([^<]+)<\/code>/',$issued,$temporaryMatch)===1,'One-time officer password missing.');
+    $temporaryPassword=html_entity_decode($temporaryMatch[1],ENT_QUOTES,'UTF-8');
+    $officerAfter=user_record($pdo,$ids['TRANS001']);
+    check(password_verify($temporaryPassword,$officerAfter['password_hash'])&&(int)$officerAfter['force_password_change']===1&&(int)$officerAfter['auth_version']===(int)$officerBefore['auth_version']+1,'Officer reset did not hash password, force change and revoke sessions.');
+    [$code,$issuedAgain]=http_call('/admin/recovery.php?status=COMPLETED',[],$adminCookie);
+    check(!str_contains($issuedAgain,$temporaryPassword),'Temporary password was displayed more than once.');
+    $resetOfficerCookie=__DIR__.'/feature-reset-officer.cookies';$files[]=$resetOfficerCookie;
+    test_login('TRANS001',$temporaryPassword,$resetOfficerCookie);
+    [$code]=http_call('/officer/dashboard.php',[],$resetOfficerCookie);
+    check($code===302,'Temporary officer password bypassed mandatory change.');
+    [$code,$passwordPage]=http_call('/auth/change_password.php',[],$resetOfficerCookie);
+    [$code]=http_call('/auth/change_password.php',['csrf_token'=>token_from($passwordPage),'current_password'=>$temporaryPassword,'password'=>'Transport river meadow 74','confirm_password'=>'Transport river meadow 74'],$resetOfficerCookie,true);
+    $officerAfter=user_record($pdo,$ids['TRANS001']);
+    check($code===302&&password_verify('Transport river meadow 74',$officerAfter['password_hash'])&&(int)$officerAfter['force_password_change']===0,'Officer could not replace temporary password.');
+    test_login('IRDP/ODICT/MA25/0001','Cedar ocean lantern 91',$recoveryCookie);
+    echo "PASS: email-only student recovery, admin-only officer reset, CSRF, hashed one-time password, session revocation and mandatory password change\n";
     check(!certificate_release_allowed($pdo,$request),'Incomplete clearance permitted certificate release.');
     // Real starts require all office reviewers and keep the period gate.
     $startCookie=__DIR__.'/feature-start.cookies';$files[]=$startCookie;
@@ -776,6 +772,17 @@ try{
     [$code]=http_call('/student/clearance_fee.php',[],$startCookie);check($code===302,'Existing clearance was sent back to the entry fee.');
     rejected(fn()=>request_clearance_fee($pdo,$ids['IRDP/BTCCD/MA25/0003']),'An existing clearance was charged again.');
     $newFinanceStage=stage_context($pdo,(int)$startedStages[10]['id']);
+    rejected(fn()=>process_stage_decision($pdo,(int)$newFinanceStage['id'],(int)$newFinanceStage['assigned_officer_id'],['action'=>'APPROVED_NO_DEBT','review_cycle'=>'1'],review_fields(11)),'No-debt Finance approval bypassed the final-office gate.');
+    foreach ($startedStages as $priorOffice) {
+        $priorState=stage_context($pdo,(int)$priorOffice['id']);
+        $priorNumber=(int)$priorState['step_number'];
+        if ($priorNumber===11 || $priorState['status']==='APPROVED') { continue; }
+        $priorInput=['action'=>'APPROVED','review_cycle'=>(string)$priorState['review_cycle'],'comments'=>'Office requirements satisfied.','corrective_instructions'=>''];
+        foreach (review_fields($priorNumber) as [$key,$label,$type]) {
+            $priorInput[$key]=$type==='number'?'0':($type==='asset'?'AVAILABLE':'CLEARED');
+        }
+        process_stage_decision($pdo,(int)$priorState['id'],(int)$priorState['assigned_officer_id'],$priorInput,review_fields($priorNumber));
+    }
     [$code,$noDebtForm]=http_call('/officer/review.php?stage='.$newFinanceStage['id'],[],$feeFinanceCookie);
     check($code===200&&str_contains($noDebtForm,'APPROVED_NO_DEBT'),'Finance cannot approve a student with no other debt.');
     [$code]=http_call('/officer/review.php?stage='.$newFinanceStage['id'],['csrf_token'=>token_from($noDebtForm),'action'=>'APPROVED_NO_DEBT','review_cycle'=>'1'],$feeFinanceCookie,true);

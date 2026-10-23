@@ -1344,10 +1344,16 @@ input[type="radio"] {
 .institution-header--compact .institution-service { display: none; }
 
 /* Footer uses the same IRDP colour family, with room below for floating tools. */
-.site-footer { position: relative; flex: 0 0 auto; overflow: hidden; padding: 32px 40px 96px; border-top: 3px solid var(--irdp-light); color: #fff; background: radial-gradient(ellipse at top left,#83c33125,transparent 55%),linear-gradient(115deg,#307c3c,var(--green-900)); }
-.site-footer::before { content: ''; position: absolute; right: -40px; bottom: -70px; width: 280px; height: 280px; background: url('../img/irdp-logo-web.png') no-repeat center / contain; opacity: .05; pointer-events: none; }
+.site-footer { position: relative; flex: 0 0 auto; overflow: hidden; padding: 32px 40px 96px; border-top: 3px solid #000; color: #fff; background: #000; }
+.site-footer::before { display: none; }
 .site-footer-inner { position: relative; max-width: 1120px; margin: 0 auto; }
-.site-footer-grid { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr); gap: 40px; }
+.site-footer-grid { display: grid; grid-template-columns: minmax(0,1.6fr) repeat(3,minmax(0,1fr)); gap: 36px; }
+.site-footer-contact address { font-style: normal; font-size: .8125rem; line-height: 1.9; color: #e6f2e7; }
+.site-footer-contact .site-footer-brand { margin-bottom: 24px; }
+.site-footer h2 { position: relative; padding-bottom: 12px; }
+.site-footer h2::after { content: ''; position: absolute; bottom: 0; left: 0; width: 32px; height: 2px; background: var(--irdp-light); }
+.site-footer-support > h2:not(:first-child) { margin-top: 20px; }
+.site-footer a:focus-visible { outline: 2px solid #fff; outline-offset: 4px; border-radius: 2px; }
 .site-footer-grid > * { min-width: 0; }
 .site-footer-brand { display: flex; align-items: center; gap: 14px; }
 .site-footer-brand img { flex: 0 0 52px; width: 52px; height: 52px; object-fit: contain; border-radius: 10px; padding: 4px; background: #fff; }

@@ -135,6 +135,14 @@ try {
     $summary=notification_email_body($notice['title'],$notice['message']);
     email_check(str_contains($summary,'Decision: APPROVED')&&!str_contains($summary,'Ada ya michezo imelipwa.'),'Approval email included the officer-entered remarks.');
     $finance=email_stage_fixture($pdo,$user,11,'2042/2043');
+    email_rejected(fn()=>process_stage_decision($pdo,(int)$finance['id'],(int)$finance['assigned_officer_id'],[
+        'action'=>'PAYMENT_REQUESTED','review_cycle'=>'1','control_number'=>'991234567890',
+    ],review_fields(11)), 'Finance payment request bypassed the other ten offices.');
+    // Finance notifications are exercised only after the current final-office gate is satisfied.
+    foreach ($pdo->query('SELECT * FROM workflow_steps WHERE step_number BETWEEN 1 AND 10') as $priorStep) {
+        $reviewer=find_office_reviewer($pdo,(int)$priorStep['office_id'],(int)$priorStep['step_number']===7?(int)$finance['department_id']:0);
+        $pdo->prepare('INSERT INTO clearance_stages(clearance_request_id,workflow_step_id,office_id,assigned_officer_id,original_officer_id,status,started_at,actionable_at) VALUES (?,?,?,?,?,"APPROVED",NOW(),NOW())')->execute([$finance['clearance_request_id'],$priorStep['id'],$priorStep['office_id'],$reviewer,$reviewer]);
+    }
     process_stage_decision($pdo,(int)$finance['id'],(int)$finance['assigned_officer_id'],[
         'action'=>'PAYMENT_REQUESTED','review_cycle'=>'1','control_number'=>'991234567890',
     ],review_fields(11));

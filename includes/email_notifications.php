@@ -76,6 +76,8 @@ function send_notification_email(array $row, array $config): void
     $failureCode = 0;
     $mail->SMTPDebug = 3;
     $mail->Debugoutput = static function (string $line, int $level) use (&$failureCode): void {
+        if (str_contains(strtolower($line), 'daily user sending limit exceeded')) { $failureCode = 429; return; }
+        if ($failureCode === 429) { return; }
         if (str_contains(strtolower($line), 'certificate verify failed')) { $failureCode = 495; }
         elseif (str_contains($line, 'Could not authenticate')) { $failureCode = 535; }
         elseif (preg_match('/SERVER -> CLIENT: (4[0-9]{2}|5[0-9]{2})\b/', $line, $match)) { $failureCode = (int)$match[1]; }
@@ -141,6 +143,13 @@ function process_notification_emails(PDO $pdo, int $limit = 20, ?array $config =
                 $result['sent']++;
             } catch (Throwable $e) {
                 $attempts = (int)$row['attempts'] + 1;
+                if ((int)$e->getCode() === 429) {
+                    $pdo->prepare('UPDATE email_outbox SET status="RETRY",attempts=?,available_at=DATE_ADD(NOW(),INTERVAL 24 HOUR),last_error=? WHERE id=?')
+                        ->execute([(int)$row['attempts'],'Gmail daily sending limit exceeded. Delivery postponed for 24 hours.',$row['id']]);
+                    $result['retry']++;
+                    $result['problem']='Gmail daily sending limit exceeded. Delivery postponed for 24 hours.';
+                    break;
+                }
                 $status = $attempts >= 5 ? 'FAILED' : 'RETRY';
                 $delay = min(3600, 60 * (2 ** ($attempts - 1)));
                 $pdo->prepare('UPDATE email_outbox SET status=?,available_at=DATE_ADD(NOW(),INTERVAL ' . $delay . ' SECOND),last_error=? WHERE id=?')
